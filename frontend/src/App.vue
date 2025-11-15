@@ -2,8 +2,13 @@
 import AnswerEditor from './components/AnswerEditor.vue'
 import ProgressBar from './components/ProgressBar.vue'
 import ResultCard from './components/ResultCard.vue'
+import AreaSelector from './components/AreaSelector.vue'
+import BatchUpload from './components/BatchUpload.vue'
+import ErrorBook from './components/ErrorBook.vue'
+import QuestionTypeSelector from './components/QuestionTypeSelector.vue'
+import HistoryPanel from './components/HistoryPanel.vue'
 import { ref } from 'vue'
-import { uploadPaper, recognizeOCR, gradePaper } from './api'
+import { uploadPaper as uploadPaperAPI, recognizeOCR, gradePaper as gradePaperAPI, recognizeOCRWithAreas, batchProcess } from './api'
 
 const selectedFile = ref(null)
 const imagePreview = ref(null)
@@ -24,6 +29,14 @@ const standardAnswers = ref([
   { answer: '2024', score: 20 }
 ])
 const answerDetails = ref([])
+const selectedAreas = ref([])
+const questionTypes = ref({})
+const currentQuestionType = ref('choice')
+const showAreaSelector = ref(false)
+const showBatchUpload = ref(false)
+const showErrorBook = ref(false)
+const showHistory = ref(false)
+const batchResults = ref([])
 
 function triggerFileInput() {
   fileInput.value && fileInput.value.click()
@@ -84,7 +97,7 @@ async function uploadPaper() {
   const formData = new FormData()
   formData.append('paper', selectedFile.value)
   try {
-    const res = await uploadPaper(formData)
+    const res = await uploadPaperAPI(formData)
     uploadedFile.value = res.data
     success.value = '试卷上传成功'
   } catch (err) {
@@ -100,9 +113,17 @@ async function startOCR() {
   loadingMessage.value = '正在进行OCR识别...'
   clearMessages()
   try {
-    const res = await recognizeOCR(uploadedFile.value.filename)
+    let res
+    // 如果有选定区域，使用区域OCR
+    if (selectedAreas.value.length > 0) {
+      res = await recognizeOCRWithAreas(uploadedFile.value.filename, selectedAreas.value)
+      // 从区域结果中提取答案
+      studentAnswers.value = res.data.results.map(result => result.text || '').filter(text => text)
+    } else {
+      res = await recognizeOCR(uploadedFile.value.filename)
+      studentAnswers.value = res.data.answers || []
+    }
     ocrResult.value = res.data
-    studentAnswers.value = res.data.answers || []
     success.value = 'OCR识别完成'
   } catch (err) {
     error.value = 'OCR识别失败：' + (err.response?.data?.error || err.message)
@@ -119,15 +140,60 @@ async function gradePaper() {
   loadingMessage.value = '正在进行智能评分...'
   clearMessages()
   try {
-    const res = await gradePaper(standardAnswers.value, studentAnswers.value)
+    const res = await gradePaperAPI(standardAnswers.value, studentAnswers.value)
     gradeResult.value = res.data
     buildDetails()
     success.value = '评分完成'
+    // 保存到历史记录
+    saveToHistory()
   } catch (err) {
     error.value = '评分失败：' + (err.response?.data?.error || err.message)
   } finally {
     loading.value = false
   }
+}
+
+function handleAreaSelected(areas) {
+  selectedAreas.value = areas
+  showAreaSelector.value = false
+}
+
+function handleBatchUploadComplete(results) {
+  batchResults.value = results
+  showBatchUpload.value = false
+  success.value = `批量处理完成，成功 ${results.filter(r => r.success).length} 个文件`
+}
+
+function addToErrorBook(question, studentAnswer, correctAnswer) {
+  const errorBook = JSON.parse(localStorage.getItem('errorBook') || '[]')
+  errorBook.push({
+    id: Date.now(),
+    question,
+    studentAnswer,
+    correctAnswer,
+    addTime: new Date().toISOString(),
+    analysis: ''
+  })
+  localStorage.setItem('errorBook', JSON.stringify(errorBook))
+}
+
+function saveToHistory() {
+  const history = JSON.parse(localStorage.getItem('gradingHistory') || '[]')
+  history.unshift({
+    id: Date.now(),
+    filename: selectedFile.value.name,
+    score: gradeResult.value.score,
+    totalScore: gradeResult.value.totalScore,
+    percentage: gradeResult.value.percentage,
+    answers: studentAnswers.value,
+    details: answerDetails.value,
+    timestamp: new Date().toISOString()
+  })
+  // 只保留最近50条记录
+  if (history.length > 50) {
+    history.splice(50)
+  }
+  localStorage.setItem('gradingHistory', JSON.stringify(history))
 }
 </script>
 
@@ -160,6 +226,13 @@ async function gradePaper() {
         <button class="btn" @click="uploadPaper" :disabled="loading">{{ loading ? '上传中...' : '上传试卷' }}</button>
         <button class="btn" @click="startOCR" :disabled="!uploadedFile || loading">{{ loading ? '识别中...' : '开始识别' }}</button>
         <button class="btn" @click="gradePaper" :disabled="!ocrResult || loading">{{ loading ? '评分中...' : '开始评分' }}</button>
+        <button class="btn" @click="showAreaSelector = true">区域框选</button>
+        <button class="btn" @click="showBatchUpload = true">批量上传</button>
+      </div>
+      <div class="btn-group">
+        <button class="btn" @click="showErrorBook = true">错题本</button>
+        <button class="btn" @click="showHistory = true">历史记录</button>
+        <button class="btn" @click="currentQuestionType = 'choice'">题型设置</button>
       </div>
       <AnswerEditor v-model="standardAnswers" />
       <div v-if="loading" class="loading">{{ loadingMessage }}</div>
@@ -170,8 +243,52 @@ async function gradePaper() {
         <ProgressBar :percent="gradeResult.percentage" :label="`正确率 ${gradeResult.percentage}%`" />
         <div class="score-display">得分：{{ gradeResult.score }} / {{ gradeResult.totalScore }}</div>
         <div class="details">
-          <ResultCard v-for="(d, i) in answerDetails" :key="i" :index="i" :student="d.student" :standard="d.standard" :score="d.score" :maxScore="d.maxScore" />
+          <ResultCard 
+            v-for="(d, i) in answerDetails" 
+            :key="i" 
+            :index="i" 
+            :student="d.student" 
+            :standard="d.standard" 
+            :score="d.score" 
+            :maxScore="d.maxScore"
+            @add-to-error-book="addToErrorBook"
+          />
         </div>
+      </div>
+    </div>
+    
+    <!-- 区域框选模态框 -->
+    <div v-if="showAreaSelector" class="modal-overlay" @click="showAreaSelector = false">
+      <div class="modal-content" @click.stop>
+        <AreaSelector :imageSrc="imagePreview" @areas-selected="handleAreaSelected" @close="showAreaSelector = false" />
+      </div>
+    </div>
+    
+    <!-- 批量上传模态框 -->
+    <div v-if="showBatchUpload" class="modal-overlay" @click="showBatchUpload = false">
+      <div class="modal-content" @click.stop>
+        <BatchUpload @batch-complete="handleBatchUploadComplete" @close="showBatchUpload = false" />
+      </div>
+    </div>
+    
+    <!-- 错题本模态框 -->
+    <div v-if="showErrorBook" class="modal-overlay" @click="showErrorBook = false">
+      <div class="modal-content" @click.stop>
+        <ErrorBook @close="showErrorBook = false" />
+      </div>
+    </div>
+    
+    <!-- 历史记录模态框 -->
+    <div v-if="showHistory" class="modal-overlay" @click="showHistory = false">
+      <div class="modal-content" @click.stop>
+        <HistoryPanel @close="showHistory = false" />
+      </div>
+    </div>
+    
+    <!-- 题型设置模态框 -->
+    <div v-if="currentQuestionType" class="modal-overlay" @click="currentQuestionType = null">
+      <div class="modal-content" @click.stop>
+        <QuestionTypeSelector :currentType="currentQuestionType" @save-config="questionTypes = $event" @close="currentQuestionType = null" />
       </div>
     </div>
   </div>
@@ -204,4 +321,28 @@ body { font-family: 'Microsoft YaHei', Arial, sans-serif }
 .btn:hover { background: #1976D2; transform: translateY(-2px) }
 .btn:disabled { background: #ccc; cursor: not-allowed; transform: none }
 .details { margin-top: 20px }
+
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 15px;
+  padding: 20px;
+  max-width: 90%;
+  max-height: 90%;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
 </style>

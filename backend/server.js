@@ -93,6 +93,78 @@ app.post('/grade', async (req, res) => {
   }
 });
 
+// 区域OCR识别接口
+app.post('/ocr/areas', async (req, res) => {
+  try {
+    const { filename, areas } = req.body;
+    if (!filename || !areas || !Array.isArray(areas)) {
+      return res.status(400).json({ error: '请提供文件名和区域信息' });
+    }
+
+    const imagePath = path.join(__dirname, 'uploads', filename);
+    if (!fs.existsSync(imagePath)) {
+      return res.status(404).json({ error: '文件不存在' });
+    }
+
+    const results = [];
+    for (const area of areas) {
+      const result = await baiduOCR.analyzeArea(imagePath, area);
+      results.push(result);
+    }
+    
+    logger.write('area_ocr_success', { areasCount: areas.length });
+    res.json({ message: '区域OCR识别成功', results });
+  } catch (error) {
+    logger.write('area_ocr_failed', { error: error.message });
+    res.status(500).json({ error: '区域OCR识别失败: ' + error.message });
+  }
+});
+
+// 批量处理接口
+app.post('/batch', upload.array('papers'), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: '请上传试卷文件' });
+    }
+
+    const results = [];
+    for (const file of req.files) {
+      try {
+        const ocrResult = await baiduOCR.analyzePaperAnswers(file.path);
+        if (ocrResult.success) {
+          results.push({
+            filename: file.filename,
+            originalname: file.originalname,
+            success: true,
+            answers: ocrResult.answers,
+            fullText: ocrResult.fullText
+          });
+        } else {
+          results.push({
+            filename: file.filename,
+            originalname: file.originalname,
+            success: false,
+            error: ocrResult.error
+          });
+        }
+      } catch (error) {
+        results.push({
+          filename: file.filename,
+          originalname: file.originalname,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+    
+    logger.write('batch_process_done', { totalFiles: req.files.length, successCount: results.filter(r => r.success).length });
+    res.json({ message: '批量处理完成', results });
+  } catch (error) {
+    logger.write('batch_process_failed', { error: error.message });
+    res.status(500).json({ error: '批量处理失败: ' + error.message });
+  }
+});
+
 app.listen(PORT, () => {
   logger.write('server_start', { port: PORT });
   console.log(`服务器运行在 http://localhost:${PORT}`);

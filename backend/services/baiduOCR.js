@@ -158,6 +158,35 @@ class BaiduOCRService {
            wordCenterY >= area.y && 
            wordCenterY <= area.y + area.height;
   }
+
+  // 分析指定区域
+  async analyzeArea(imagePath, area) {
+    try {
+      const ocrResult = await this.recognizeHandwriting(imagePath);
+      
+      if (!ocrResult.success) {
+        return ocrResult;
+      }
+
+      // 提取区域内的文字
+      const areaText = ocrResult.words
+        .filter(word => this.isWordInArea(word, area))
+        .map(word => word.text)
+        .join('');
+
+      return {
+        success: true,
+        text: areaText,
+        area: area,
+        words: ocrResult.words.filter(word => this.isWordInArea(word, area))
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: '区域分析失败: ' + error.message
+      };
+    }
+  }
 }
 
 module.exports = new BaiduOCRService();
