@@ -7,7 +7,8 @@ import BatchUpload from './components/BatchUpload.vue'
 import ErrorBook from './components/ErrorBook.vue'
 import QuestionTypeSelector from './components/QuestionTypeSelector.vue'
 import HistoryPanel from './components/HistoryPanel.vue'
-import { ref } from 'vue'
+import TestImageGenerator from './components/TestImageGenerator.vue'
+import { ref, computed } from 'vue'
 import { uploadPaper as uploadPaperAPI, recognizeOCR, gradePaper as gradePaperAPI, recognizeOCRWithAreas, batchProcess } from './api'
 
 const selectedFile = ref(null)
@@ -37,6 +38,16 @@ const showBatchUpload = ref(false)
 const showErrorBook = ref(false)
 const showHistory = ref(false)
 const batchResults = ref([])
+const showGenerator = ref(false)
+const showOcrPanel = ref(false)
+const ocrTextLines = computed(() => {
+  const r = ocrResult.value
+  if (!r) return []
+  if (Array.isArray(r.results)) return r.results.map(x => x.text || '').filter(Boolean)
+  if (Array.isArray(r.answers)) return r.answers
+  if (typeof r.text === 'string') return r.text.split('\n')
+  return []
+})
 
 function triggerFileInput() {
   fileInput.value && fileInput.value.click()
@@ -228,11 +239,18 @@ function saveToHistory() {
         <button class="btn" @click="gradePaper" :disabled="!ocrResult || loading">{{ loading ? '评分中...' : '开始评分' }}</button>
         <button class="btn" @click="showAreaSelector = true">区域框选</button>
         <button class="btn" @click="showBatchUpload = true">批量上传</button>
+        <button class="btn" @click="showGenerator = true">测试图片生成器</button>
       </div>
       <div class="btn-group">
         <button class="btn" @click="showErrorBook = true">错题本</button>
         <button class="btn" @click="showHistory = true">历史记录</button>
         <button class="btn" @click="currentQuestionType = 'choice'">题型设置</button>
+        <button class="btn" @click="showOcrPanel = !showOcrPanel">{{ showOcrPanel ? '关闭OCR结果' : '显示OCR结果' }}</button>
+      </div>
+      <div class="ocr-panel" v-if="showOcrPanel">
+        <h3>OCR识别结果</h3>
+        <pre class="ocr-text" v-if="ocrTextLines.length">{{ ocrTextLines.join('\n') }}</pre>
+        <p v-else>暂无识别结果</p>
       </div>
       <AnswerEditor v-model="standardAnswers" />
       <div v-if="loading" class="loading">{{ loadingMessage }}</div>
@@ -292,6 +310,12 @@ function saveToHistory() {
       </div>
     </div>
   </div>
+  <!-- 测试图片生成器模态框 -->
+  <div v-if="showGenerator" class="modal-overlay" @click="showGenerator = false">
+    <div class="modal-content" @click.stop>
+      <TestImageGenerator />
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -321,6 +345,8 @@ body { font-family: 'Microsoft YaHei', Arial, sans-serif }
 .btn:hover { background: #1976D2; transform: translateY(-2px) }
 .btn:disabled { background: #ccc; cursor: not-allowed; transform: none }
 .details { margin-top: 20px }
+.ocr-panel { margin-top: 20px; padding: 20px; background: #fff8e1; border-radius: 12px; border: 1px solid #ffe082 }
+.ocr-text { white-space: pre-wrap; font-family: Consolas, Monaco, monospace; background: #fff; border: 1px dashed #ffc107; padding: 12px; border-radius: 8px }
 
 /* 模态框样式 */
 .modal-overlay {

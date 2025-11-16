@@ -1,23 +1,37 @@
 # 校园试卷自动判分系统
 
 ## 项目简介
-基于目标检测与手写OCR的校园试卷自动判分系统，使用Vue2和Node.js开发。
+基于目标检测与手写OCR的校园试卷自动判分系统，使用Vue3 + Vite 与 Node.js开发。
 
 ## 技术栈
-- **前端**: Vue2 + HTML5 + CSS3
+- **前端**: Vue3 + Vite + HTML5 + CSS3
 - **后端**: Node.js + Express
 - **OCR API**: 百度智能云手写识别
 
 ## 项目结构
 ```
 校园试卷自动判分系统/
-├── frontend/          # 前端代码
-│   └── index.html    # 主页面
-├── backend/          # 后端代码
-│   ├── server.js     # 服务器主文件
-│   └── package.json  # 后端依赖
-├── uploads/          # 上传文件目录
-└── package.json      # 项目配置
+├── frontend/                # 前端代码（Vite + Vue3）
+│   ├── index.html           # 前端入口
+│   ├── package.json         # 前端依赖
+│   └── src/
+│       ├── main.js
+│       ├── App.vue
+│       └── components/
+│           ├── AnswerEditor.vue
+│           ├── AreaSelector.vue
+│           ├── BatchUpload.vue
+│           ├── ErrorBook.vue
+│           ├── HistoryPanel.vue
+│           ├── ProgressBar.vue
+│           ├── QuestionTypeSelector.vue
+│           ├── ResultCard.vue
+│           └── TestImageGenerator.vue   # 测试图片生成器（内置）
+├── backend/                # 后端代码
+│   ├── server.js           # 服务器主文件
+│   └── package.json        # 后端依赖
+├── uploads/                # 上传文件目录
+└── package.json            # 顶层项目配置
 ```
 
 ## 快速开始
@@ -46,8 +60,8 @@ npm install
 npm run dev
 ```
 
-访问 http://localhost:3000 查看后端服务
-直接打开 frontend/index.html 查看前端页面
+访问后端服务：`http://localhost:3000`
+前端开发服务：运行后访问 `http://localhost:5173`
 
 ## 功能特点
 - ✅ 拖拽上传试卷图片
@@ -55,12 +69,20 @@ npm run dev
 - ✅ OCR手写文字识别
 - ✅ 自动评分计算
 - ✅ 结果可视化展示
+- ✅ 区域框选识别
+- ✅ 批量上传处理
+- ✅ 错题本管理
+- ✅ 历史记录管理
+- ✅ 题型设置
+- ✅ 测试图片生成器（前端内置）
+- ✅ OCR识别结果面板（常驻按钮切换显示）
 
 ## 使用说明
-1. 上传试卷图片（支持拖拽）
-2. 点击"开始识别"进行OCR文字识别
-3. 点击"开始评分"进行自动判分
-4. 查看评分结果和正确率
+- 上传试卷图片（支持拖拽）
+- 点击`开始识别`进行OCR文字识别
+- 点击`开始评分`进行自动判分
+- 使用`显示OCR结果`常驻按钮切换识别结果面板，便于测试
+- 需要生成测试图片时，点击`测试图片生成器`按钮，生成并下载图片
 
 ## 学习资源
 - [Vue2官方文档](https://cn.vuejs.org/v2/guide/)
@@ -70,5 +92,5 @@ npm run dev
 ## 后续优化建议
 1. 添加更多题型支持
 2. 提高OCR识别准确率
-3. 添加错题分析功能
-4. 支持批量处理
+3. 丰富错题分析功能
+4. 增强高分辨率适配与打印布局
