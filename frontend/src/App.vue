@@ -216,7 +216,7 @@ function saveToHistory() {
     </div>
     <div class="content layout">
       <div class="left-panel">
-        <TestImageGenerator />
+        <TestImageGenerator @regions-generated="selectedAreas = Array.isArray($event) ? $event : $event.value" />
       </div>
       <div class="right-panel">
         <div class="upload-section">

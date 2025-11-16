@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+const emit = defineEmits(['regions-generated'])
 
 const title = ref('数学测试卷')
 const content = ref('1. 3 + 5 = 8\n2. 12 × 4 = 48\n3. 25 ÷ 5 = 5\n4. 9 - 7 = 2\n5. 6 × 7 = 42')
@@ -11,6 +12,8 @@ const bgColor = ref('#ffffff')
 const lineHeight = ref(1.6)
 const canvasRef = ref(null)
 const showSettings = ref(false)
+const showOverlay = ref(false)
+const regions = ref([])
 
 const presets = {
   math: {
@@ -86,6 +89,7 @@ function generatePaper() {
   const canvas = canvasRef.value
   if (!canvas) return
   const ctx = canvas.getContext('2d')
+  regions.value = []
   ctx.fillStyle = bgColor.value
   ctx.fillRect(0, 0, canvas.width, canvas.height)
   ctx.fillStyle = textColor.value
@@ -122,6 +126,14 @@ function generatePaper() {
         ctx.moveTo(sx, baselineY)
         ctx.lineTo(sx + segWidth, baselineY)
         ctx.stroke()
+        const ry = baselineY - fontSize.value * 0.8
+        const rh = fontSize.value * 1.2
+        regions.value.push({ x: sx, y: ry, w: segWidth, h: rh })
+        if (showOverlay.value) {
+          ctx.fillStyle = 'rgba(255, 193, 7, 0.2)'
+          ctx.fillRect(sx, ry, segWidth, rh)
+          ctx.fillStyle = textColor.value
+        }
       }
       y += lineSpacing
     } else {
@@ -146,6 +158,7 @@ function generatePaper() {
   })
   addDecorations(ctx, canvas.width, canvas.height, textColor.value)
   addHandwritingEffect(ctx, canvas.width, canvas.height)
+  emit('regions-generated', regions.value)
 }
 
 function downloadImage() {
@@ -185,6 +198,8 @@ onMounted(() => {
     </div>
     <div class="toolbar">
       <button class="toggle-settings" @click="showSettings = !showSettings">{{ showSettings ? '隐藏设置' : '显示设置' }}</button>
+      <button class="toggle-settings" @click="showOverlay = !showOverlay">{{ showOverlay ? '隐藏区域框' : '显示区域框' }}</button>
+      <button class="apply-btn" @click="emit('regions-generated', regions)">应用到识别</button>
     </div>
     <div class="controls" v-if="showSettings">
       <div class="control-group">
