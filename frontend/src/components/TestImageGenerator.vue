@@ -10,6 +10,7 @@ const textColor = ref('#000000')
 const bgColor = ref('#ffffff')
 const lineHeight = ref(1.6)
 const canvasRef = ref(null)
+const showSettings = ref(false)
 
 const presets = {
   math: {
@@ -182,7 +183,10 @@ onMounted(() => {
       <button class="preset-btn" @click="loadPreset('mixed')">综合测试卷</button>
       <button class="preset-btn" @click="loadPreset('choice')">选择题测试</button>
     </div>
-    <div class="controls">
+    <div class="toolbar">
+      <button class="toggle-settings" @click="showSettings = !showSettings">{{ showSettings ? '隐藏设置' : '显示设置' }}</button>
+    </div>
+    <div class="controls" v-if="showSettings">
       <div class="control-group">
         <label>试卷标题</label>
         <input v-model="title" type="text" />
@@ -193,17 +197,17 @@ onMounted(() => {
       </div>
       <div class="control-group">
         <label>字体大小</label>
-        <input type="range" min="20" max="40" v-model="fontSize" @input="generatePaper" />
+        <input type="range" min="18" max="32" v-model="fontSize" @input="generatePaper" />
         <span>{{ fontSize }}px</span>
       </div>
       <div class="control-group">
         <label>图片宽度</label>
-        <input type="range" min="600" max="1200" v-model="width" @input="updateCanvasSize(); generatePaper()" />
+        <input type="range" min="600" max="1400" v-model="width" @input="updateCanvasSize(); generatePaper()" />
         <span>{{ width }}px</span>
       </div>
       <div class="control-group">
         <label>图片高度</label>
-        <input type="range" min="600" max="1200" v-model="height" @input="updateCanvasSize(); generatePaper()" />
+        <input type="range" min="800" max="1800" v-model="height" @input="updateCanvasSize(); generatePaper()" />
         <span>{{ height }}px</span>
       </div>
       <div class="control-group">
@@ -216,7 +220,7 @@ onMounted(() => {
       </div>
       <div class="control-group">
         <label>行间距</label>
-        <input type="range" min="1.2" max="2.0" step="0.1" v-model="lineHeight" @input="generatePaper" />
+        <input type="range" min="1.2" max="1.8" step="0.1" v-model="lineHeight" @input="generatePaper" />
         <span>{{ lineHeight }}</span>
       </div>
     </div>
@@ -236,6 +240,8 @@ body { font-family: 'Microsoft YaHei', Arial, sans-serif }
 .container { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 1000px }
 h1 { color: #333; text-align: center; margin-bottom: 20px }
 .instructions { background: #e3f2fd; border-left: 4px solid #2196F3; padding: 12px; border-radius: 5px; margin-bottom: 15px }
+.toolbar { display: flex; justify-content: flex-end; margin: 8px 0 }
+.toggle-settings { background: #607D8B; color: #fff; border: none; padding: 8px 14px; border-radius: 6px }
 .preset-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 10px 0 }
 .preset-btn { background: #9C27B0; color: #fff; padding: 8px 15px; font-size: 12px; border: none; border-radius: 5px }
 .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px }

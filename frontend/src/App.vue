@@ -320,7 +320,7 @@ function saveToHistory() {
 <style scoped>
 * { margin: 0; padding: 0; box-sizing: border-box }
 body { font-family: 'Microsoft YaHei', Arial, sans-serif }
-.container { max-width: 1200px; margin: 0 auto; background: #fff; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden }
+.container { width: 100%; margin: 0 auto; background: #fff; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden }
 .header { background: linear-gradient(45deg, #4CAF50, #45a049); color: #fff; padding: 30px; text-align: center }
 .header h1 { font-size: 2em; margin-bottom: 10px }
 .header p { font-size: 1em; opacity: .9 }
@@ -384,7 +384,7 @@ body { font-family: 'Microsoft YaHei', Arial, sans-serif }
 
 /* 4K大屏适配 */
 @media (min-width: 2560px) {
-  .container { max-width: 2200px }
+  .container { width: 100% }
   .header h1 { font-size: clamp(2.2em, 1.6vw, 3em) }
   .header p { font-size: clamp(1.1em, 1vw, 1.6em) }
   .upload-area { padding: 80px 30px }
