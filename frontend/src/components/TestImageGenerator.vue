@@ -104,22 +104,43 @@ function generatePaper() {
   const lineSpacing = fontSize.value * lineHeight.value
   lines.forEach(line => {
     const maxWidth = canvas.width - 100
-    const words = line.split('')
-    let currentLine = ''
-    for (let i = 0; i < words.length; i++) {
-      const testLine = currentLine + words[i]
-      const metrics = ctx.measureText(testLine)
-      if (metrics.width > maxWidth && currentLine !== '') {
+    const eqIdx = line.indexOf('=')
+    if (eqIdx !== -1) {
+      const before = line.slice(0, eqIdx + 1).trim()
+      ctx.fillText(before, 50, y)
+      const xStart = 50 + ctx.measureText(before).width + 12
+      const placeholderWidth = Math.max(120, Math.min(maxWidth * 0.35, fontSize.value * 6))
+      const segCount = 3
+      const segWidth = (placeholderWidth - (segCount - 1) * 12) / segCount
+      const baselineY = y + fontSize.value - 6
+      ctx.strokeStyle = textColor.value
+      ctx.lineWidth = 2
+      for (let s = 0; s < segCount; s++) {
+        const sx = xStart + s * (segWidth + 12)
+        ctx.beginPath()
+        ctx.moveTo(sx, baselineY)
+        ctx.lineTo(sx + segWidth, baselineY)
+        ctx.stroke()
+      }
+      y += lineSpacing
+    } else {
+      const words = line.split('')
+      let currentLine = ''
+      for (let i = 0; i < words.length; i++) {
+        const testLine = currentLine + words[i]
+        const metrics = ctx.measureText(testLine)
+        if (metrics.width > maxWidth && currentLine !== '') {
+          ctx.fillText(currentLine, 50, y)
+          y += lineSpacing
+          currentLine = words[i]
+        } else {
+          currentLine = testLine
+        }
+      }
+      if (currentLine) {
         ctx.fillText(currentLine, 50, y)
         y += lineSpacing
-        currentLine = words[i]
-      } else {
-        currentLine = testLine
       }
-    }
-    if (currentLine) {
-      ctx.fillText(currentLine, 50, y)
-      y += lineSpacing
     }
   })
   addDecorations(ctx, canvas.width, canvas.height, textColor.value)

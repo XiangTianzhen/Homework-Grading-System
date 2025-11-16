@@ -32,7 +32,7 @@ const standardAnswers = ref([
 const answerDetails = ref([])
 const selectedAreas = ref([])
 const questionTypes = ref({})
-const currentQuestionType = ref('choice')
+const currentQuestionType = ref(null)
 const showAreaSelector = ref(false)
 const showBatchUpload = ref(false)
 const showErrorBook = ref(false)
@@ -214,63 +214,67 @@ function saveToHistory() {
       <h1>校园试卷自动判分系统</h1>
       <p>基于OCR的手写试卷识别与评分</p>
     </div>
-    <div class="content">
-      <div class="upload-section">
-        <div class="upload-area" @click="triggerFileInput" @drop="handleDrop" @dragover.prevent @dragenter.prevent @dragenter="dragOver" @dragleave="dragLeave">
-          <input type="file" ref="fileInput" @change="handleFileSelect" accept="image/*" class="file-input">
-          <div v-if="!selectedFile">
-            <h3>拖拽或点击上传试卷图片</h3>
-            <p>支持 JPG、PNG</p>
-            <button class="upload-btn">选择图片</button>
-          </div>
-          <div v-else>
-            <h3>已选择文件</h3>
-            <p>{{ selectedFile.name }}</p>
+    <div class="content layout">
+      <div class="left-panel">
+        <TestImageGenerator />
+      </div>
+      <div class="right-panel">
+        <div class="upload-section">
+          <div class="upload-area" @click="triggerFileInput" @drop="handleDrop" @dragover.prevent @dragenter.prevent @dragenter="dragOver" @dragleave="dragLeave">
+            <input type="file" ref="fileInput" @change="handleFileSelect" accept="image/*" class="file-input">
+            <div v-if="!selectedFile">
+              <h3>拖拽或点击上传试卷图片</h3>
+              <p>支持 JPG、PNG</p>
+              <button class="upload-btn">选择图片</button>
+            </div>
+            <div v-else>
+              <h3>已选择文件</h3>
+              <p>{{ selectedFile.name }}</p>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="preview-section" v-if="imagePreview">
-        <h3>试卷预览</h3>
-        <img :src="imagePreview" alt="试卷预览" class="preview-image">
-      </div>
-      <div class="btn-group" v-if="selectedFile">
-        <button class="btn" @click="uploadPaper" :disabled="loading">{{ loading ? '上传中...' : '上传试卷' }}</button>
-        <button class="btn" @click="startOCR" :disabled="!uploadedFile || loading">{{ loading ? '识别中...' : '开始识别' }}</button>
-        <button class="btn" @click="gradePaper" :disabled="!ocrResult || loading">{{ loading ? '评分中...' : '开始评分' }}</button>
-        <button class="btn" @click="showAreaSelector = true">区域框选</button>
-        <button class="btn" @click="showBatchUpload = true">批量上传</button>
-        <button class="btn" @click="showGenerator = true">测试图片生成器</button>
-      </div>
-      <div class="btn-group">
-        <button class="btn" @click="showErrorBook = true">错题本</button>
-        <button class="btn" @click="showHistory = true">历史记录</button>
-        <button class="btn" @click="currentQuestionType = 'choice'">题型设置</button>
-        <button class="btn" @click="showOcrPanel = !showOcrPanel">{{ showOcrPanel ? '关闭OCR结果' : '显示OCR结果' }}</button>
-      </div>
-      <div class="ocr-panel" v-if="showOcrPanel">
-        <h3>OCR识别结果</h3>
-        <pre class="ocr-text" v-if="ocrTextLines.length">{{ ocrTextLines.join('\n') }}</pre>
-        <p v-else>暂无识别结果</p>
-      </div>
-      <AnswerEditor v-model="standardAnswers" />
-      <div v-if="loading" class="loading">{{ loadingMessage }}</div>
-      <div v-if="error" class="error">{{ error }}</div>
-      <div v-if="success" class="success">{{ success }}</div>
-      <div class="results-section" v-if="gradeResult">
-        <h3>评分结果</h3>
-        <ProgressBar :percent="gradeResult.percentage" :label="`正确率 ${gradeResult.percentage}%`" />
-        <div class="score-display">得分：{{ gradeResult.score }} / {{ gradeResult.totalScore }}</div>
-        <div class="details">
-          <ResultCard 
-            v-for="(d, i) in answerDetails" 
-            :key="i" 
-            :index="i" 
-            :student="d.student" 
-            :standard="d.standard" 
-            :score="d.score" 
-            :maxScore="d.maxScore"
-            @add-to-error-book="addToErrorBook"
-          />
+        <div class="preview-section" v-if="imagePreview">
+          <h3>试卷预览</h3>
+          <img :src="imagePreview" alt="试卷预览" class="preview-image">
+        </div>
+        <div class="btn-group" v-if="selectedFile">
+          <button class="btn" @click="uploadPaper" :disabled="loading">{{ loading ? '上传中...' : '上传试卷' }}</button>
+          <button class="btn" @click="startOCR" :disabled="!uploadedFile || loading">{{ loading ? '识别中...' : '开始识别' }}</button>
+          <button class="btn" @click="gradePaper" :disabled="!ocrResult || loading">{{ loading ? '评分中...' : '开始评分' }}</button>
+          <button class="btn" @click="showAreaSelector = true">区域框选</button>
+          <button class="btn" @click="showBatchUpload = true">批量上传</button>
+        </div>
+        <div class="btn-group">
+          <button class="btn" @click="showErrorBook = true">错题本</button>
+          <button class="btn" @click="showHistory = true">历史记录</button>
+          <button class="btn" @click="currentQuestionType = 'choice'">题型设置</button>
+          <button class="btn" @click="showOcrPanel = !showOcrPanel">{{ showOcrPanel ? '关闭OCR结果' : '显示OCR结果' }}</button>
+        </div>
+        <div class="ocr-panel" v-if="showOcrPanel">
+          <h3>OCR识别结果</h3>
+          <pre class="ocr-text" v-if="ocrTextLines.length">{{ ocrTextLines.join('\n') }}</pre>
+          <p v-else>暂无识别结果</p>
+        </div>
+        <AnswerEditor v-model="standardAnswers" />
+        <div v-if="loading" class="loading">{{ loadingMessage }}</div>
+        <div v-if="error" class="error">{{ error }}</div>
+        <div v-if="success" class="success">{{ success }}</div>
+        <div class="results-section" v-if="gradeResult">
+          <h3>评分结果</h3>
+          <ProgressBar :percent="gradeResult.percentage" :label="`正确率 ${gradeResult.percentage}%`" />
+          <div class="score-display">得分：{{ gradeResult.score }} / {{ gradeResult.totalScore }}</div>
+          <div class="details">
+            <ResultCard 
+              v-for="(d, i) in answerDetails" 
+              :key="i" 
+              :index="i" 
+              :student="d.student" 
+              :standard="d.standard" 
+              :score="d.score" 
+              :maxScore="d.maxScore"
+              @add-to-error-book="addToErrorBook"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -310,12 +314,7 @@ function saveToHistory() {
       </div>
     </div>
   </div>
-  <!-- 测试图片生成器模态框 -->
-  <div v-if="showGenerator" class="modal-overlay" @click="showGenerator = false">
-    <div class="modal-content" @click.stop>
-      <TestImageGenerator />
-    </div>
-  </div>
+  
 </template>
 
 <style scoped>
@@ -326,6 +325,8 @@ body { font-family: 'Microsoft YaHei', Arial, sans-serif }
 .header h1 { font-size: 2em; margin-bottom: 10px }
 .header p { font-size: 1em; opacity: .9 }
 .content { padding: 40px }
+.layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; align-items: start }
+.left-panel, .right-panel { min-width: 0 }
 .upload-section { text-align: center; margin-bottom: 40px }
 .upload-area { border: 3px dashed #4CAF50; border-radius: 15px; padding: 60px 20px; background: #f8f9fa; transition: .3s; cursor: pointer }
 .upload-area:hover { background: #e8f5e8; border-color: #45a049 }
@@ -370,5 +371,24 @@ body { font-family: 'Microsoft YaHei', Arial, sans-serif }
   max-height: 90%;
   overflow-y: auto;
   box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+/* 手机端布局 */
+@media (max-width: 768px) {
+  .layout { display: block }
+  .content { padding: 16px }
+  .upload-area { padding: 30px 12px }
+  .preview-image { max-height: 260px }
+  .btn { padding: 10px 18px; border-radius: 16px }
+}
+
+/* 4K大屏适配 */
+@media (min-width: 2560px) {
+  .container { max-width: 2200px }
+  .header h1 { font-size: clamp(2.2em, 1.6vw, 3em) }
+  .header p { font-size: clamp(1.1em, 1vw, 1.6em) }
+  .upload-area { padding: 80px 30px }
+  .preview-image { max-height: 600px }
+  .btn { font-size: clamp(1em, 0.9vw, 1.4em); padding: 16px 28px }
 }
 </style>
