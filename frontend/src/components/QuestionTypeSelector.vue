@@ -273,19 +273,20 @@ watch(() => props.modelValue, (newConfig) => {
     label { font-weight: 500; color: #555 }
 
     .correct-select { padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; background: white }
-
+  }
   .fill-config { margin-bottom: 15px;
 
     label { font-weight: 500; color: #555; margin-right: 10px }
 
     .fill-count { padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; width: 80px }
+  }
 
   .fill-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
 
     .fill-index { min-width: 60px; font-weight: 500; color: #555 }
 
     .fill-input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px }
-
+  }
   .essay-config { label { display: block; font-weight: 500; color: #555; margin-bottom: 8px }
 
     .keywords-input { width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 5px }
@@ -297,7 +298,7 @@ watch(() => props.modelValue, (newConfig) => {
 
     .save-btn { background: #4CAF50; color: #fff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; &:hover { background: #45a049 } }
 
-
     .reset-btn { background: #9e9e9e; color: #fff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; &:hover { background: #757575 } }
-
+  }
+}
 </style>
