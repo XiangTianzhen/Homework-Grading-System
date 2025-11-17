@@ -1,0 +1,14 @@
+@use './_variables.scss' as *;
+
+@mixin card {
+  background: #fff;
+  border-radius: $radius;
+  box-shadow: $shadow;
+}
+
+@mixin fluid-type($min, $max) {
+  font-size: clamp($min, 1vw, $max);
+}
+
+@mixin mobile { @media (max-width: $bp-mobile) { @content; } }
+@mixin fourk { @media (min-width: $bp-4k) { @content; } }

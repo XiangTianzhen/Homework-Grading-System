@@ -250,13 +250,16 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 body { font-family: 'Microsoft YaHei', Arial, sans-serif }
-.container { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 1000px }
-h1 { color: #333; text-align: center; margin-bottom: 20px }
+.container {
+  background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  max-width: 1000px;
+  h1 { color: #333; text-align: center; margin-bottom: 20px }
+}
 .instructions { background: #e3f2fd; border-left: 4px solid #2196F3; padding: 12px; border-radius: 5px; margin-bottom: 15px }
-.toolbar { display: flex; justify-content: flex-end; margin: 8px 0 }
-.toggle-settings { background: #607D8B; color: #fff; border: none; padding: 8px 14px; border-radius: 6px }
+.toolbar { display: flex; gap: 10px; justify-content: flex-end; margin: 8px 0 }
+.toggle-settings, .apply-btn { background: #607D8B; color: #fff; border: none; padding: 8px 14px; border-radius: 6px }
 .preset-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 10px 0 }
 .preset-btn { background: #9C27B0; color: #fff; padding: 8px 15px; font-size: 12px; border: none; border-radius: 5px }
 .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px }

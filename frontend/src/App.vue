@@ -317,7 +317,7 @@ function saveToHistory() {
   
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 * { margin: 0; padding: 0; box-sizing: border-box }
 body { font-family: 'Microsoft YaHei', Arial, sans-serif }
 .container { width: 100%; margin: 0 auto; background: #fff; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden }
