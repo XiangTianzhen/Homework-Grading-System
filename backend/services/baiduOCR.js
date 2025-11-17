@@ -59,6 +59,12 @@ class BaiduOCRService {
       params.set('result_type', 'big');
       params.set('detect_direction', 'true');
       params.set('words_type', 'handprint_mix');
+      params.set('line_probability', 'true');
+      params.set('disp_line_poly', 'true');
+      params.set('layout_analysis', 'true');
+      params.set('recg_formula', 'true');
+      params.set('recg_long_division', 'true');
+      params.set('disp_underline_analysis', 'true');
 
       const response = await axios.post(
         `${BAIDU_OCR_CONFIG.ocrUrl}?access_token=${accessToken}`,
@@ -78,14 +84,28 @@ class BaiduOCRService {
           position: item.location || null
         }));
       } else if (Array.isArray(data.results)) {
-        lines = data.results.map(item => item.text || item.content || '');
-        wordsWithPosition = data.results.map(item => ({
-          text: item.text || item.content || '',
-          confidence: item.confidence || 0,
-          position: item.location || null
-        }));
+        lines = data.results.map(item => item.text || item.content || (item.words && item.words.join('')) || '');
+        wordsWithPosition = data.results.map(item => {
+          const poly = item.disp_line_poly && item.disp_line_poly.points;
+          let position = item.location || null;
+          if (!position && Array.isArray(poly) && poly.length > 0) {
+            const xs = poly.map(p => p.x);
+            const ys = poly.map(p => p.y);
+            const left = Math.min.apply(null, xs);
+            const top = Math.min.apply(null, ys);
+            const right = Math.max.apply(null, xs);
+            const bottom = Math.max.apply(null, ys);
+            position = { left, top, width: right - left, height: bottom - top };
+          }
+          return {
+            text: item.text || item.content || (item.words && item.words.join('')) || '',
+            confidence: (item.probability && item.probability.average) || item.confidence || 0,
+            position
+          };
+        });
       }
 
+      lines = lines.map(s => (typeof s === 'string' ? s.trim() : '')).filter(s => s.length > 0);
       if (lines.length === 0) {
         return { success: false, error: '未识别到文字', rawResponse: data };
       }
@@ -178,7 +198,8 @@ class BaiduOCRService {
         success: true,
         text: areaText,
         area: area,
-        words: ocrResult.words.filter(word => this.isWordInArea(word, area))
+        words: ocrResult.words.filter(word => this.isWordInArea(word, area)),
+        rawResponse: ocrResult.rawResponse
       };
     } catch (error) {
       return {

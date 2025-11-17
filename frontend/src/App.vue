@@ -24,13 +24,7 @@ const loadingMessage = ref('')
 const error = ref(null)
 const success = ref(null)
 const fileInput = ref(null)
-const standardAnswers = ref([
-  { answer: '苹果', score: 20 },
-  { answer: '北京', score: 20 },
-  { answer: '3.14', score: 20 },
-  { answer: '李白', score: 20 },
-  { answer: '2024', score: 20 }
-])
+const standardAnswers = ref([])
 const answerDetails = ref([])
 const selectedAreas = ref([])
 const questionTypes = ref({})
@@ -142,8 +136,6 @@ async function startOCR() {
     success.value = 'OCR识别完成'
   } catch (err) {
     error.value = 'OCR识别失败：' + (err.response?.data?.error || err.message)
-    studentAnswers.value = ['苹果', '北京', '3.14', '李白', '2024']
-    success.value = '使用演示数据继续评分'
   } finally {
     loading.value = false
   }

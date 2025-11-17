@@ -9,6 +9,7 @@ import { RouterLink, RouterView } from 'vue-router'
       <nav class="nav">
         <RouterLink to="/workspace" class="nav-link">工作台</RouterLink>
         <RouterLink to="/generator" class="nav-link">试卷图片生成器</RouterLink>
+        <RouterLink to="/test-ocr" class="nav-link">测试页</RouterLink>
       </nav>
     </header>
     <main class="content">

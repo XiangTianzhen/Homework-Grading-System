@@ -65,7 +65,8 @@ import { ref, reactive, watch, nextTick } from 'vue'
 
 const props = defineProps({
   imageSrc: String,
-  modelValue: Array
+  modelValue: Array,
+  single: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:modelValue', 'areas-selected', 'close'])
@@ -136,7 +137,11 @@ function endSelection(e) {
     height: Math.abs(area.height)
   }
   
-  areas.value.push(normalizedArea)
+  if (props.single) {
+    areas.value = [normalizedArea]
+  } else {
+    areas.value.push(normalizedArea)
+  }
   currentArea.value = null
 }
 

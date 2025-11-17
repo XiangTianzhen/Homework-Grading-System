@@ -62,7 +62,7 @@ app.post('/ocr', async (req, res) => {
     
     if (result.success) {
       logger.write('ocr_success', { answersCount: (result.answers || []).length });
-      res.json({ message: 'OCR识别成功', answers: result.answers, fullText: result.fullText, words: result.words });
+      res.json({ message: 'OCR识别成功', answers: result.answers, fullText: result.fullText, words: result.words, rawResponse: result.rawResponse });
     } else {
       logger.write('ocr_failed', { error: result.error });
       res.status(500).json({ error: result.error });
