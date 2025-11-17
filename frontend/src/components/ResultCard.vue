@@ -38,12 +38,15 @@ function addToErrorBook() {
 }
 </script>
 
-<style scoped>
-.result-card { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; box-shadow: 0 2px 6px rgba(0,0,0,.05) }
-.header-row { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 8px }
-.row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 14px }
-.correct { color: #4CAF50 }
-.wrong { color: #f44336 }
-.error-book-row { margin-top: 8px; text-align: right }
-.add-to-error-book { background: #ff9800; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer }
+<style scoped lang="scss">
+// 单题结果卡片
+.result-card { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; box-shadow: 0 2px 6px rgba(0,0,0,.05);
+  .header-row { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 8px }
+  .row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 14px }
+  .correct { color: #4CAF50 }
+  .wrong { color: #f44336 }
+  .error-book-row { margin-top: 8px; text-align: right;
+    .add-to-error-book { background: #ff9800; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer }
+  }
+}
 </style>

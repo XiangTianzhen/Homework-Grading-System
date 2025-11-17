@@ -187,240 +187,46 @@ defineExpose({
 loadFromLocalStorage()
 </script>
 
-<style scoped>
-.error-book {
-  background: #fff;
-  border-radius: 10px;
-  padding: 20px;
-  margin-top: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.book-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.book-header h4 {
-  color: #333;
-  margin: 0;
-}
-
-.book-controls {
-  display: flex;
-  gap: 10px;
-}
-
-.export-btn {
-  background: #4CAF50;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.export-btn:hover {
-  background: #45a049;
-}
-
-.clear-btn {
-  background: #f44336;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.clear-btn:hover {
-  background: #d32f2f;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 40px;
-  color: #666;
-}
-
-.empty-state .hint {
-  font-size: 14px;
-  margin-top: 10px;
-  color: #999;
-}
-
-.error-list {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.error-item {
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 15px;
-  background: #fafafa;
-}
-
-.error-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.error-index {
-  font-weight: 600;
-  color: #333;
-}
-
-.error-date {
-  font-size: 12px;
-  color: #666;
-}
-
-.error-content {
-  margin-bottom: 10px;
-}
-
-.question-section,
-.answer-section,
-.analysis-section {
-  margin-bottom: 8px;
-}
-
-.label {
-  font-weight: 500;
-  color: #555;
-  margin-right: 8px;
-}
-
-.question {
-  color: #333;
-}
-
-.wrong-answer {
-  color: #f44336;
-  text-decoration: line-through;
-}
-
-.right-answer {
-  color: #4CAF50;
-  font-weight: 500;
-}
-
-.analysis-text {
-  color: #666;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.error-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.remove-btn {
-  background: #f44336;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.remove-btn:hover {
-  background: #d32f2f;
-}
-
-.analysis-btn {
-  background: #2196F3;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.analysis-btn:hover {
-  background: #1976D2;
-}
-
-/* 对话框样式 */
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.dialog-content {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-}
-
-.dialog-content h5 {
-  margin-bottom: 15px;
-  color: #333;
-}
-
-.dialog-content textarea {
-  width: 100%;
-  min-height: 100px;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  resize: vertical;
-  font-family: inherit;
-  font-size: 14px;
-}
-
-.dialog-actions {
-  margin-top: 15px;
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
-.save-btn {
-  background: #4CAF50;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.save-btn:hover {
-  background: #45a049;
-}
-
-.cancel-btn {
-  background: #9e9e9e;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.cancel-btn:hover {
-  background: #757575;
+<style scoped lang="scss">
+// 错题本组件
+.error-book { background: #fff; border-radius: 10px; padding: 20px; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  .book-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+    h4 { color: #333; margin: 0 }
+    .book-controls { display: flex; gap: 10px;
+      .export-btn { background: #4CAF50; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; &:hover { background: #45a049 } }
+      .clear-btn { background: #f44336; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; &:hover { background: #d32f2f } }
+    }
+  }
+  .empty-state { text-align: center; padding: 40px; color: #666; .hint { font-size: 14px; margin-top: 10px; color: #999 } }
+  .error-list { display: flex; flex-direction: column; gap: 15px;
+    .error-item { border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #fafafa;
+      .error-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+        .error-index { font-weight: 600; color: #333 }
+        .error-date { font-size: 12px; color: #666 }
+      }
+      .error-content { margin-bottom: 10px;
+        .question-section, .answer-section, .analysis-section { margin-bottom: 8px }
+        .label { font-weight: 500; color: #555; margin-right: 8px }
+        .question { color: #333 }
+        .wrong-answer { color: #f44336; text-decoration: line-through }
+        .right-answer { color: #4CAF50; font-weight: 500 }
+        .analysis-text { color: #666; font-size: 14px; line-height: 1.5 }
+      }
+      .error-actions { display: flex; gap: 10px;
+        .remove-btn { background: #f44336; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; &:hover { background: #d32f2f } }
+        .analysis-btn { background: #2196F3; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; &:hover { background: #1976D2 } }
+      }
+    }
+  }
+  // 对话框
+  .dialog-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000 }
+  .dialog-content { background: #fff; border-radius: 8px; padding: 20px; width: 90%; max-width: 500px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    h5 { margin-bottom: 15px; color: #333 }
+    textarea { width: 100%; min-height: 100px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-family: inherit; font-size: 14px }
+    .dialog-actions { margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;
+      .save-btn { background: #4CAF50; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; &:hover { background: #45a049 } }
+      .cancel-btn { background: #9e9e9e; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; &:hover { background: #757575 } }
+    }
+  }
 }
 </style>

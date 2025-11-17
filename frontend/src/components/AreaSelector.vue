@@ -175,149 +175,33 @@ if (typeof window !== 'undefined') {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+// 区域框选组件
 .area-selector {
-  margin-top: 20px;
-  background: #fff;
-  border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.selector-header {
-  margin-bottom: 15px;
-}
-
-.selector-header h4 {
-  color: #333;
-  margin-bottom: 5px;
-}
-
-.selector-header p {
-  color: #666;
-  font-size: 14px;
-}
-
-.image-container {
-  position: relative;
-  display: inline-block;
-  max-width: 100%;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.image-container img {
-  max-width: 100%;
-  height: auto;
-  display: block;
-  cursor: crosshair;
-}
-
-.selected-area {
-  position: absolute;
-  border: 2px solid #4CAF50;
-  background: rgba(76, 175, 80, 0.1);
-  pointer-events: none;
-}
-
-.area-label {
-  position: absolute;
-  top: -25px;
-  left: 0;
-  background: #4CAF50;
-  color: white;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.remove-area {
-  position: absolute;
-  top: -10px;
-  right: -10px;
-  background: #f44336;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  font-size: 14px;
-  cursor: pointer;
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.remove-area:hover {
-  background: #d32f2f;
-}
-
-.selecting-area {
-  position: absolute;
-  border: 2px dashed #2196F3;
-  background: rgba(33, 150, 243, 0.1);
-  pointer-events: none;
-}
-
-.selector-controls {
-  margin-top: 15px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.clear-btn {
-  background: #f44336;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.clear-btn:hover {
-  background: #d32f2f;
-}
-
-.area-count {
-  color: #666;
-  font-size: 14px;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-.cancel-btn {
-  background: #9e9e9e;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.cancel-btn:hover {
-  background: #757575;
-}
-
-.save-btn {
-  background: #4CAF50;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.save-btn:hover {
-  background: #45a049;
+  margin-top: 20px; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  .selector-header { margin-bottom: 15px;
+    h4 { color: #333; margin-bottom: 5px }
+    p { color: #666; font-size: 14px }
+  }
+  .image-container { position: relative; display: inline-block; max-width: 100%; border: 2px solid #e0e0e0; border-radius: 8px; overflow: hidden;
+    img { max-width: 100%; height: auto; display: block; cursor: crosshair }
+    .selected-area { position: absolute; border: 2px solid #4CAF50; background: rgba(76,175,80,0.1); pointer-events: none;
+      .area-label { position: absolute; top: -25px; left: 0; background: #4CAF50; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold }
+      .remove-area { position: absolute; top: -10px; right: -10px; background: #f44336; color: #fff; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 14px; cursor: pointer; pointer-events: auto; display: flex; align-items: center; justify-content: center;
+        &:hover { background: #d32f2f }
+      }
+    }
+    .selecting-area { position: absolute; border: 2px dashed #2196F3; background: rgba(33,150,243,0.1); pointer-events: none }
+  }
+  .selector-controls { margin-top: 15px; display: flex; justify-content: space-between; align-items: center;
+    .clear-btn { background: #f44336; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;
+      &:hover { background: #d32f2f }
+    }
+    .area-count { color: #666; font-size: 14px }
+    .action-buttons { display: flex; gap: 10px;
+      .cancel-btn { background: #9e9e9e; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; &:hover { background: #757575 } }
+      .save-btn { background: #4CAF50; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; &:hover { background: #45a049 } }
+    }
+  }
 }
 </style>

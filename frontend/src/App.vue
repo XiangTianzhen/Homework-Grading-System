@@ -1,4 +1,5 @@
 <script setup>
+// 工作台页面：上传图片→区域OCR→评分→历史与错题管理
 import AnswerEditor from './components/AnswerEditor.vue'
 import ProgressBar from './components/ProgressBar.vue'
 import ResultCard from './components/ResultCard.vue'
@@ -11,6 +12,7 @@ import TestImageGenerator from './components/TestImageGenerator.vue'
 import { ref, computed } from 'vue'
 import { uploadPaper as uploadPaperAPI, recognizeOCR, gradePaper as gradePaperAPI, recognizeOCRWithAreas, batchProcess } from './api'
 
+// 选择的试卷文件与预览
 const selectedFile = ref(null)
 const imagePreview = ref(null)
 const uploadedFile = ref(null)
@@ -100,6 +102,7 @@ function handleDrop(e) {
 function dragOver(e) { e.target.classList.add('dragover') }
 function dragLeave(e) { e.target.classList.remove('dragover') }
 
+// 上传试卷到后端，返回存储文件信息
 async function uploadPaper() {
   if (!selectedFile.value) return
   loading.value = true
@@ -118,6 +121,7 @@ async function uploadPaper() {
   }
 }
 
+// 启动OCR识别：若有选定区域则按区域识别，否则整图识别
 async function startOCR() {
   if (!uploadedFile.value) return
   loading.value = true
@@ -145,6 +149,7 @@ async function startOCR() {
   }
 }
 
+// 根据标准答案与识别答案进行评分，并写入历史
 async function gradePaper() {
   if (!ocrResult.value) return
   loading.value = true
@@ -188,6 +193,7 @@ function addToErrorBook(question, studentAnswer, correctAnswer) {
   localStorage.setItem('errorBook', JSON.stringify(errorBook))
 }
 
+// 保存评分记录到本地历史
 function saveToHistory() {
   const history = JSON.parse(localStorage.getItem('gradingHistory') || '[]')
   history.unshift({
@@ -214,10 +220,7 @@ function saveToHistory() {
       <h1>校园试卷自动判分系统</h1>
       <p>基于OCR的手写试卷识别与评分</p>
     </div>
-    <div class="content layout">
-      <div class="left-panel">
-        <TestImageGenerator @regions-generated="selectedAreas = Array.isArray($event) ? $event : $event.value" />
-      </div>
+    <div class="content">
       <div class="right-panel">
         <div class="upload-section">
           <div class="upload-area" @click="triggerFileInput" @drop="handleDrop" @dragover.prevent @dragenter.prevent @dragenter="dragOver" @dragleave="dragLeave">
@@ -318,77 +321,76 @@ function saveToHistory() {
 </template>
 
 <style scoped lang="scss">
-* { margin: 0; padding: 0; box-sizing: border-box }
-body { font-family: 'Microsoft YaHei', Arial, sans-serif }
-.container { width: 100%; margin: 0 auto; background: #fff; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden }
-.header { background: linear-gradient(45deg, #4CAF50, #45a049); color: #fff; padding: 30px; text-align: center }
-.header h1 { font-size: 2em; margin-bottom: 10px }
-.header p { font-size: 1em; opacity: .9 }
-.content { padding: 40px }
-.layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; align-items: start }
-.left-panel, .right-panel { min-width: 0 }
-.upload-section { text-align: center; margin-bottom: 40px }
-.upload-area { border: 3px dashed #4CAF50; border-radius: 15px; padding: 60px 20px; background: #f8f9fa; transition: .3s; cursor: pointer }
-.upload-area:hover { background: #e8f5e8; border-color: #45a049 }
-.upload-area.dragover { background: #e8f5e8; border-color: #45a049 }
-.upload-btn { background: #4CAF50; color: #fff; border: none; padding: 15px 30px; border-radius: 25px; font-size: 1.1em; cursor: pointer; transition: .3s }
-.upload-btn:hover { background: #45a049; transform: translateY(-2px) }
-.file-input { display: none }
-.preview-section { margin-top: 30px; text-align: center }
-.preview-image { max-width: 100%; max-height: 400px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2) }
-.results-section { margin-top: 40px; padding: 30px; background: #f8f9fa; border-radius: 15px }
-.score-display { text-align: center; font-size: 1.6em; color: #4CAF50; margin-bottom: 20px }
+// 页面容器与头部
+.container {
+  width: 100%; margin: 0 auto; background: #fff; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden;
+  .header {
+    background: linear-gradient(45deg, #4CAF50, #45a049); color: #fff; padding: 30px; text-align: center;
+    h1 { font-size: 2em; margin-bottom: 10px }
+    p { font-size: 1em; opacity: .9 }
+  }
+  .content { padding: 40px }
+}
+
+// 上传与预览区域
+.right-panel {
+  .upload-section { text-align: center; margin-bottom: 40px }
+  .upload-area { border: 3px dashed #4CAF50; border-radius: 15px; padding: 60px 20px; background: #f8f9fa; transition: .3s; cursor: pointer;
+    &:hover { background: #e8f5e8; border-color: #45a049 }
+    &.dragover { background: #e8f5e8; border-color: #45a049 }
+    .upload-btn { background: #4CAF50; color: #fff; border: none; padding: 15px 30px; border-radius: 25px; font-size: 1.1em; cursor: pointer; transition: .3s;
+      &:hover { background: #45a049; transform: translateY(-2px) }
+    }
+    .file-input { display: none }
+  }
+  .preview-section { margin-top: 30px; text-align: center;
+    .preview-image { max-width: 100%; max-height: 400px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2) }
+  }
+}
+
+// 操作按钮与结果区域
+.btn-group { text-align: center; margin-top: 20px;
+  .btn { background: #2196F3; color: #fff; border: none; padding: 12px 25px; border-radius: 20px; margin: 0 10px; cursor: pointer; font-size: 1em; transition: .3s;
+    &:hover { background: #1976D2; transform: translateY(-2px) }
+    &:disabled { background: #ccc; cursor: not-allowed; transform: none }
+  }
+}
+
+.results-section { margin-top: 40px; padding: 30px; background: #f8f9fa; border-radius: 15px;
+  .score-display { text-align: center; font-size: 1.6em; color: #4CAF50; margin-bottom: 20px }
+  .details { margin-top: 20px }
+}
+
+// OCR结果面板
+.ocr-panel { margin-top: 20px; padding: 20px; background: #fff8e1; border-radius: 12px; border: 1px solid #ffe082;
+  .ocr-text { white-space: pre-wrap; font-family: Consolas, Monaco, monospace; background: #fff; border: 1px dashed #ffc107; padding: 12px; border-radius: 8px }
+}
+
+// 提示与信息条
 .loading { text-align: center; padding: 20px; font-size: 1.1em; color: #666 }
 .error { background: #ffebee; color: #c62828; padding: 15px; border-radius: 10px; margin: 10px 0 }
 .success { background: #e8f5e8; color: #2e7d32; padding: 15px; border-radius: 10px; margin: 10px 0 }
-.btn-group { text-align: center; margin-top: 20px }
-.btn { background: #2196F3; color: #fff; border: none; padding: 12px 25px; border-radius: 20px; margin: 0 10px; cursor: pointer; font-size: 1em; transition: .3s }
-.btn:hover { background: #1976D2; transform: translateY(-2px) }
-.btn:disabled { background: #ccc; cursor: not-allowed; transform: none }
-.details { margin-top: 20px }
-.ocr-panel { margin-top: 20px; padding: 20px; background: #fff8e1; border-radius: 12px; border: 1px solid #ffe082 }
-.ocr-text { white-space: pre-wrap; font-family: Consolas, Monaco, monospace; background: #fff; border: 1px dashed #ffc107; padding: 12px; border-radius: 8px }
 
-/* 模态框样式 */
+// 模态框样式
 .modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);
+  display: flex; justify-content: center; align-items: center; z-index: 1000;
 }
-
 .modal-content {
-  background: white;
-  border-radius: 15px;
-  padding: 20px;
-  max-width: 90%;
-  max-height: 90%;
-  overflow-y: auto;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  background: white; border-radius: 15px; padding: 20px; max-width: 90%; max-height: 90%; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
 }
 
-/* 手机端布局 */
+// 移动端适配
 @media (max-width: 768px) {
-  .layout { display: block }
-  .content { padding: 16px }
-  .upload-area { padding: 30px 12px }
-  .preview-image { max-height: 260px }
-  .btn { padding: 10px 18px; border-radius: 16px }
+  .container { .content { padding: 16px } }
+  .right-panel { .upload-area { padding: 30px 12px } .preview-section { .preview-image { max-height: 260px } } }
+  .btn-group { .btn { padding: 10px 18px; border-radius: 16px } }
 }
 
-/* 4K大屏适配 */
+// 4K适配
 @media (min-width: 2560px) {
-  .container { width: 100% }
-  .header h1 { font-size: clamp(2.2em, 1.6vw, 3em) }
-  .header p { font-size: clamp(1.1em, 1vw, 1.6em) }
-  .upload-area { padding: 80px 30px }
-  .preview-image { max-height: 600px }
-  .btn { font-size: clamp(1em, 0.9vw, 1.4em); padding: 16px 28px }
+  .container { width: 100%; .header { h1 { font-size: clamp(2.2em, 1.6vw, 3em) } p { font-size: clamp(1.1em, 1vw, 1.6em) } } }
+  .right-panel { .upload-area { padding: 80px 30px } .preview-section { .preview-image { max-height: 600px } } }
+  .btn-group { .btn { font-size: clamp(1em, 0.9vw, 1.4em); padding: 16px 28px } }
 }
 </style>

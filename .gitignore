@@ -15,6 +15,7 @@ backend/node_modules
 frontend/node_modules
 uploads/
 backend/log/
+.trae
 .env
 *.env
 *.local

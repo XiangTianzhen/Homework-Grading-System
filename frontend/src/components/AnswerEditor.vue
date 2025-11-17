@@ -32,14 +32,21 @@ function remove(i) {
 }
 </script>
 
-<style scoped>
-.answer-editor { background: #fff; border-radius: 10px; padding: 20px; margin-top: 20px }
-.answer-list { display: flex; flex-direction: column; gap: 10px }
-.answer-item { display: flex; align-items: center; gap: 10px }
-.index { min-width: 60px; font-weight: 600 }
-input { flex: 1; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px }
-input[type=number] { flex: 0 0 80px }
-button.remove { background: #f44336; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer }
-.add-row { margin-top: 15px; text-align: right }
-button.add { background: #4CAF50; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer }
+<style scoped lang="scss">
+// 标准答案编辑器样式（嵌套结构便于维护）
+.answer-editor {
+  background: #fff; border-radius: 10px; padding: 20px; margin-top: 20px;
+  .answer-list { display: flex; flex-direction: column; gap: 10px;
+    .answer-item { display: flex; align-items: center; gap: 10px;
+      .index { min-width: 60px; font-weight: 600 }
+      input { flex: 1; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px;
+        &[type=number] { flex: 0 0 80px }
+      }
+      button.remove { background: #f44336; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer }
+    }
+  }
+  .add-row { margin-top: 15px; text-align: right;
+    button.add { background: #4CAF50; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer }
+  }
+}
 </style>

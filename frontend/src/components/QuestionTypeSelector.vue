@@ -235,214 +235,69 @@ watch(() => props.modelValue, (newConfig) => {
 }, { immediate: true })
 </script>
 
-<style scoped>
-.question-type-selector {
-  background: #fff;
-  border-radius: 10px;
-  padding: 20px;
-  margin-top: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
+<style scoped lang="scss">
+.question-type-selector { background: #fff; border-radius: 10px; padding: 20px; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 
-.question-type-selector h4 {
-  margin-bottom: 15px;
-  color: #333;
-}
+  h4 { margin-bottom: 15px; color: #333 }
 
-.type-tabs {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-}
+  .type-tabs { display: flex; gap: 10px; margin-bottom: 20px;
 
-.type-tab {
-  padding: 8px 16px;
-  border: 1px solid #ddd;
-  background: #f5f5f5;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
+    .type-tab { padding: 8px 16px; border: 1px solid #ddd; background: #f5f5f5; border-radius: 5px; cursor: pointer; transition: all .3s;
 
-.type-tab:hover {
-  background: #e0e0e0;
-}
+      &:hover { background: #e0e0e0 }
 
-.type-tab.active {
-  background: #4CAF50;
-  color: white;
-  border-color: #4CAF50;
-}
+      &.active { background: #4CAF50; color: #fff; border-color: #4CAF50 }
+    }
+  }
 
-.type-config {
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: 5px;
-  margin-bottom: 15px;
-}
+  .type-config { padding: 15px; background: #f8f9fa; border-radius: 5px; margin-bottom: 15px }
 
-.choice-options {
-  margin-bottom: 15px;
-}
+  .choice-options { margin-bottom: 15px;
 
-.option-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
+    .option-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
 
-.option-label {
-  min-width: 30px;
-  font-weight: 600;
-  color: #333;
-}
+      .option-label { min-width: 30px; font-weight: 600; color: #333 }
 
-.option-input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
+      .option-input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px }
 
-.remove-option {
-  background: #f44336;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+      .remove-option { background: #f44336; color: #fff; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; &:hover { background: #d32f2f } }
 
-.remove-option:hover {
-  background: #d32f2f;
-}
+    }
 
-.add-option {
-  background: #4CAF50;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
+    .add-option { background: #4CAF50; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; &:hover { background: #45a049 } }
 
-.add-option:hover {
-  background: #45a049;
-}
+  }
 
-.correct-answer {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+  .correct-answer { display: flex; align-items: center; gap: 10px;
 
-.correct-answer label {
-  font-weight: 500;
-  color: #555;
-}
+    label { font-weight: 500; color: #555 }
 
-.correct-select {
-  padding: 6px 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: white;
-}
+    .correct-select { padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; background: white }
 
-.fill-config {
-  margin-bottom: 15px;
-}
+  .fill-config { margin-bottom: 15px;
 
-.fill-config label {
-  font-weight: 500;
-  color: #555;
-  margin-right: 10px;
-}
+    label { font-weight: 500; color: #555; margin-right: 10px }
 
-.fill-count {
-  padding: 6px 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  width: 80px;
-}
+    .fill-count { padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; width: 80px }
 
-.fill-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
+  .fill-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
 
-.fill-index {
-  min-width: 60px;
-  font-weight: 500;
-  color: #555;
-}
+    .fill-index { min-width: 60px; font-weight: 500; color: #555 }
 
-.fill-input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
+    .fill-input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px }
 
-.essay-config label {
-  display: block;
-  font-weight: 500;
-  color: #555;
-  margin-bottom: 8px;
-}
+  .essay-config { label { display: block; font-weight: 500; color: #555; margin-bottom: 8px }
 
-.keywords-input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  margin-bottom: 5px;
-}
+    .keywords-input { width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 5px }
 
-.keywords-hint {
-  font-size: 12px;
-  color: #666;
-  font-style: italic;
-}
+    .keywords-hint { font-size: 12px; color: #666; font-style: italic }
+  }
 
-.type-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
+  .type-actions { display: flex; gap: 10px; justify-content: flex-end;
 
-.save-btn {
-  background: #4CAF50;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
+    .save-btn { background: #4CAF50; color: #fff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; &:hover { background: #45a049 } }
 
-.save-btn:hover {
-  background: #45a049;
-}
 
-.reset-btn {
-  background: #9e9e9e;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
+    .reset-btn { background: #9e9e9e; color: #fff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; &:hover { background: #757575 } }
 
-.reset-btn:hover {
-  background: #757575;
-}
 </style>
