@@ -48,7 +48,7 @@ app.post('/upload', upload.single('paper'), (req, res) => {
 // OCR识别接口（集成百度OCR）
 app.post('/ocr', async (req, res) => {
   try {
-    const { filename } = req.body;
+    const { filename, options } = req.body;
     if (!filename) {
       return res.status(400).json({ error: '请提供文件名' });
     }
@@ -58,7 +58,7 @@ app.post('/ocr', async (req, res) => {
       return res.status(404).json({ error: '文件不存在' });
     }
 
-    const result = await baiduOCR.analyzePaperAnswers(imagePath);
+    const result = await baiduOCR.analyzePaperAnswers(imagePath, [], options || {});
     
     if (result.success) {
       logger.write('ocr_success', { answersCount: (result.answers || []).length });
@@ -96,7 +96,7 @@ app.post('/grade', async (req, res) => {
 // 区域OCR识别接口
 app.post('/ocr/areas', async (req, res) => {
   try {
-    const { filename, areas } = req.body;
+    const { filename, areas, options } = req.body;
     if (!filename || !areas || !Array.isArray(areas)) {
       return res.status(400).json({ error: '请提供文件名和区域信息' });
     }
@@ -108,7 +108,7 @@ app.post('/ocr/areas', async (req, res) => {
 
     const results = [];
     for (const area of areas) {
-      const result = await baiduOCR.analyzeArea(imagePath, area);
+      const result = await baiduOCR.analyzeArea(imagePath, area, options || {});
       results.push(result);
     }
     
@@ -117,6 +117,28 @@ app.post('/ocr/areas', async (req, res) => {
   } catch (error) {
     logger.write('area_ocr_failed', { error: error.message });
     res.status(500).json({ error: '区域OCR识别失败: ' + error.message });
+  }
+});
+
+// 试卷切题识别（paper_cut_edu）
+app.post('/paper-cut', async (req, res) => {
+  try {
+    const { filename, options } = req.body;
+    if (!filename) return res.status(400).json({ error: '请提供文件名' });
+    const imagePath = path.join(__dirname, 'uploads', filename);
+    if (!fs.existsSync(imagePath)) return res.status(404).json({ error: '文件不存在' });
+
+    const result = await baiduOCR.paperCutEdu(imagePath, options || {});
+    if (result.success) {
+      logger.write('paper_cut_success', { questions: result.questions.length });
+      res.json({ message: '试卷切题识别成功', questions: result.questions, rawResponse: result.rawResponse });
+    } else {
+      logger.write('paper_cut_failed', { error: result.error });
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.write('paper_cut_exception', { error: error.message });
+    res.status(500).json({ error: '试卷切题识别失败: ' + error.message });
   }
 });
 

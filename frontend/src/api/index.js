@@ -8,14 +8,17 @@ const api = axios.create({
 export const uploadPaper = (formData) =>
   api.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 
-export const recognizeOCR = (filename) =>
-  api.post('/ocr', { filename })
+export const recognizeOCR = (filename, options = {}) =>
+  api.post('/ocr', { filename, options })
 
 export const gradePaper = (answers, studentAnswers) =>
   api.post('/grade', { answers, studentAnswers })
 
-export const recognizeOCRWithAreas = (filename, areas) =>
-  api.post('/ocr/areas', { filename, areas })
+export const recognizeOCRWithAreas = (filename, areas, options = {}) =>
+  api.post('/ocr/areas', { filename, areas, options })
+
+export const paperCutEdu = (filename, options = {}) =>
+  api.post('/paper-cut', { filename, options })
 
 export const batchProcess = (files) => {
   const formData = new FormData()

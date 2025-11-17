@@ -45,7 +45,7 @@ class BaiduOCRService {
   }
 
   // 识别手写文字
-  async recognizeHandwriting(imagePath) {
+  async recognizeHandwriting(imagePath, options = {}) {
     try {
       const accessToken = await this.getAccessToken();
       
@@ -55,16 +55,17 @@ class BaiduOCRService {
       
       const params = new URLSearchParams();
       params.set('image', base64Image);
-      params.set('language_type', 'CHN_ENG');
-      params.set('result_type', 'big');
-      params.set('detect_direction', 'true');
-      params.set('words_type', 'handprint_mix');
-      params.set('line_probability', 'true');
-      params.set('disp_line_poly', 'true');
-      params.set('layout_analysis', 'true');
-      params.set('recg_formula', 'true');
-      params.set('recg_long_division', 'true');
-      params.set('disp_underline_analysis', 'true');
+      params.set('language_type', options.language_type || 'CHN_ENG');
+      params.set('result_type', options.result_type || 'big');
+      params.set('detect_direction', options.detect_direction !== undefined ? String(options.detect_direction) : 'false');
+      params.set('words_type', options.words_type || 'handprint_mix');
+      params.set('line_probability', options.line_probability !== undefined ? String(options.line_probability) : 'false');
+      params.set('disp_line_poly', options.disp_line_poly !== undefined ? String(options.disp_line_poly) : 'false');
+      params.set('layout_analysis', options.layout_analysis !== undefined ? String(options.layout_analysis) : 'false');
+      params.set('recg_formula', options.recg_formula !== undefined ? String(options.recg_formula) : 'false');
+      params.set('recg_long_division', options.recg_long_division !== undefined ? String(options.recg_long_division) : 'false');
+      params.set('disp_underline_analysis', options.disp_underline_analysis !== undefined ? String(options.disp_underline_analysis) : 'false');
+      if (options.recg_alter !== undefined) params.set('recg_alter', String(options.recg_alter));
 
       const response = await axios.post(
         `${BAIDU_OCR_CONFIG.ocrUrl}?access_token=${accessToken}`,
@@ -125,10 +126,85 @@ class BaiduOCRService {
     }
   }
 
-  // 分析试卷答案（根据位置信息）
-  async analyzePaperAnswers(imagePath, questionAreas = []) {
+  // 试卷切题识别（paper_cut_edu）
+  async paperCutEdu(imagePath, options = {}) {
     try {
-      const ocrResult = await this.recognizeHandwriting(imagePath);
+      const accessToken = await this.getAccessToken();
+      const imageBuffer = fs.readFileSync(imagePath);
+      const base64Image = imageBuffer.toString('base64');
+
+      const params = new URLSearchParams();
+      params.set('image', base64Image);
+      // 默认参数设置（与 recognizeHandwriting 的风格一致）
+      params.set('language_type', options.language_type || 'CHN_ENG');
+      params.set('detect_direction', options.detect_direction !== undefined ? String(options.detect_direction) : 'false');
+      params.set('words_type', options.words_type || 'handprint_mix');
+      params.set('splice_text', options.splice_text !== undefined ? String(options.splice_text) : 'true');
+      params.set('enhance', options.enhance !== undefined ? String(options.enhance) : 'true');
+
+      const url = 'https://aip.baidubce.com/rest/2.0/ocr/v1/paper_cut_edu';
+      const response = await axios.post(
+        `${url}?access_token=${accessToken}`,
+        params,
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+
+      const data = response.data || {};
+      const questions = [];
+      const typeMap = { 0: 'choice', 1: 'judge', 2: 'fill', 3: 'qa', 4: 'other' };
+
+      if (Array.isArray(data.qus_result)) {
+        for (const q of data.qus_result) {
+          const t = typeMap[q.qus_type] || 'unknown';
+          const elem = q.qus_element || [];
+          let stem = '';
+          let answer = '';
+          let optionsText = '';
+          // 优先使用 elem_text 聚合结果
+          if (q.elem_text) {
+            stem = q.elem_text.stem_text || stem;
+            answer = q.elem_text.answer_text || answer;
+            optionsText = q.elem_text.option_text || optionsText;
+          }
+          // 回退到元素逐项拼接
+          if ((!stem || !answer) && Array.isArray(elem)) {
+            for (const e of elem) {
+              const lines = (e.elem_word || []).map(w => w.word || '').join('');
+              if (e.elem_type === 0 && !stem) stem = lines;
+              if (e.elem_type === 2 && !answer) answer = lines;
+              if (e.elem_type === 3) optionsText += lines;
+            }
+          }
+
+          // 位置转换：四点坐标转矩形
+          let bbox = null;
+          if (Array.isArray(q.qus_location)) {
+            const xs = q.qus_location.map(p => p.x);
+            const ys = q.qus_location.map(p => p.y);
+            const left = Math.min.apply(null, xs);
+            const top = Math.min.apply(null, ys);
+            const right = Math.max.apply(null, xs);
+            const bottom = Math.max.apply(null, ys);
+            bbox = { left, top, width: right - left, height: bottom - top };
+          }
+          questions.push({ type: t, stem, answer, options: optionsText, bbox, probability: q.qus_probability });
+        }
+      }
+
+      if (questions.length === 0) {
+        return { success: false, error: '未识别到题目', rawResponse: data };
+      }
+
+      return { success: true, questions, rawResponse: data };
+    } catch (error) {
+      return { success: false, error: '试卷切题识别失败: ' + (error.response?.data?.error_msg || error.message) };
+    }
+  }
+
+  // 分析试卷答案（根据位置信息）
+  async analyzePaperAnswers(imagePath, questionAreas = [], options = {}) {
+    try {
+      const ocrResult = await this.recognizeHandwriting(imagePath, options);
       
       if (!ocrResult.success) {
         return ocrResult;
@@ -180,9 +256,9 @@ class BaiduOCRService {
   }
 
   // 分析指定区域
-  async analyzeArea(imagePath, area) {
+  async analyzeArea(imagePath, area, options = {}) {
     try {
-      const ocrResult = await this.recognizeHandwriting(imagePath);
+      const ocrResult = await this.recognizeHandwriting(imagePath, options);
       
       if (!ocrResult.success) {
         return ocrResult;
