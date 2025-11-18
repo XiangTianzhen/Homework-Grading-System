@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import AreaSelector from '../components/AreaSelector.vue'
-import { uploadPaper as uploadPaperAPI, recognizeOCR, recognizeOCRWithAreas, paperCutEdu, handwritingAreas, accurateAreas, generalAreas, handwritingByImages, accurateByImages, generalByImages, docByImages, handwritingWhole, accurateWhole, generalWhole } from '../api'
+import { uploadPaper as uploadPaperAPI, recognizeOCR, recognizeOCRWithAreas, paperCutEdu, paperCutByImages, handwritingAreas, accurateAreas, generalAreas, handwritingByImages, accurateByImages, generalByImages, docByImages, handwritingWhole, accurateWhole, generalWhole } from '../api'
 
 const fileInput = ref(null)
 const selectedFile = ref(null)
@@ -119,32 +119,21 @@ function isInAnyMask(pos) {
 
 async function runUnifiedOCR() {
   if (!uploaded.value) return
-  if (apiChoice.value === 'paper') {
-    loading.value = true; msg.value = '试卷切题识别中...'; err.value = ''
-    try {
-      if (areas.value.length) {
-        renderCrops()
-        const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
-        const resp = await paperCutByImages(images, paperOptions.value)
-        const results = resp.data?.results || []
-        const qs = results.flatMap(r => r.questions || [])
-        const filtered = qs.filter(q => {
-          const b = q.bbox
-          if (!b) return true
-          const cx = b.left + (b.width || 0)/2
-          const cy = b.top + (b.height || 0)/2
-          return !maskAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
-        })
-        paperRes.value = { questions: filtered }
-        const arr = filtered.map(q => (q.answer || '').trim()).filter(Boolean)
-        extracted.value = arr.length ? arr : filtered.map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
-        msg.value = '试卷切题识别完成（区域）'
-      } else {
+    if (apiChoice.value === 'paper') {
+      loading.value = true; msg.value = '试卷切题识别中...'; err.value = ''
+      try {
         const res = await paperCutEdu(uploaded.value.filename, paperOptions.value)
         const qs = (res.data?.questions || [])
-        const filtered = qs.filter(q => {
-          const b = q.bbox
-          if (!b) return true
+        const inArea = areas.value.length
+          ? qs.filter(q => {
+              const b = q.bbox; if (!b) return false
+              const cx = b.left + (b.width || 0)/2
+              const cy = b.top + (b.height || 0)/2
+              return areas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
+            })
+          : qs
+        const filtered = inArea.filter(q => {
+          const b = q.bbox; if (!b) return true
           const cx = b.left + (b.width || 0)/2
           const cy = b.top + (b.height || 0)/2
           return !maskAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
@@ -152,34 +141,30 @@ async function runUnifiedOCR() {
         paperRes.value = { questions: filtered }
         const arr = filtered.map(q => (q.answer || '').trim()).filter(Boolean)
         extracted.value = arr.length ? arr : filtered.map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
-        msg.value = '试卷切题识别完成'
-      }
-    } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
-    renderCrops()
+        msg.value = areas.value.length ? '试卷切题识别完成（选区）' : '试卷切题识别完成'
+      } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
+      renderCrops()
   } else {
     if (apiChoice.value === 'handwriting') {
       loading.value = true; err.value = ''
       try {
         if (areas.value.length) {
-          renderCrops()
-          const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
-          const res = await handwritingByImages(images, handwritingOptions.value)
-          handRes.value = res.data
-          let texts = (res.data?.results || []).map(r => (r.text || '').trim())
-          const needFallbackIdx = texts.map((t, i) => ({ t, i })).filter(x => !x.t || x.t.length <= 1).map(x => x.i)
-          if (needFallbackIdx.length) {
-            const fbImages = needFallbackIdx.map(i => images[i])
-            const acc = await accurateByImages(fbImages, accurateOptions.value)
-            accurateRes.value = acc.data
-            const accResults = acc.data?.results || []
-            accResults.forEach((r, idx) => { const i = needFallbackIdx[idx]; const ft = (r.text || '').trim(); if (ft) texts[i] = ft })
-          }
-          extracted.value = texts
+          const res = await handwritingAreas(uploaded.value.filename, areas.value, handwritingOptions.value)
+          const results = res.data?.results || []
+          const texts = results.map(r => {
+            const filtered = (r.words || []).filter(w => !isInAnyMask(w.position))
+            return filtered.map(w => w.text || '').join('') || (r.text || '')
+          })
+          handRes.value = { text: texts.join('\n') }
+          extracted.value = texts.map(t => (t || '').trim())
           msg.value = '手写区域识别完成'
         } else {
           const res = await handwritingWhole(uploaded.value.filename, handwritingOptions.value)
-          handRes.value = res.data
-          extracted.value = [(res.data?.text || '').trim()]
+          const words = (res.data?.words || [])
+          const filtered = words.filter(w => !isInAnyMask(w.position))
+          const text = filtered.map(w => w.text || '').join('') || (res.data?.text || '')
+          handRes.value = { ...res.data, words: filtered, text }
+          extracted.value = [text.trim()]
           msg.value = '手写整图识别完成'
         }
       } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
@@ -187,16 +172,22 @@ async function runUnifiedOCR() {
       loading.value = true; err.value = ''
       try {
         if (areas.value.length) {
-          renderCrops()
-          const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
-          const res = await accurateByImages(images, accurateOptions.value)
-          accurateRes.value = res.data
-          extracted.value = (res.data?.results || []).map(r => (r.text || '').trim())
+          const res = await accurateAreas(uploaded.value.filename, areas.value, accurateOptions.value)
+          const results = res.data?.results || []
+          const texts = results.map(r => {
+            const filtered = (r.words || []).filter(w => !isInAnyMask(w.position))
+            return filtered.map(w => w.text || '').join('') || (r.text || '')
+          })
+          accurateRes.value = { text: texts.join('\n') }
+          extracted.value = texts.map(t => (t || '').trim())
           msg.value = '高精度区域识别完成'
         } else {
           const res = await accurateWhole(uploaded.value.filename, accurateOptions.value)
-          accurateRes.value = res.data
-          extracted.value = [(res.data?.text || '').trim()]
+          const words = (res.data?.words || [])
+          const filtered = words.filter(w => !isInAnyMask(w.position))
+          const text = filtered.map(w => w.text || '').join('') || (res.data?.text || '')
+          accurateRes.value = { ...res.data, words: filtered, text }
+          extracted.value = [text.trim()]
           msg.value = '高精度整图识别完成'
         }
       } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
@@ -204,16 +195,22 @@ async function runUnifiedOCR() {
       loading.value = true; err.value = ''
       try {
         if (areas.value.length) {
-          renderCrops()
-          const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
-          const res = await generalByImages(images, generalOptions.value)
-          generalRes.value = res.data
-          extracted.value = (res.data?.results || []).map(r => (r.text || '').trim())
+          const res = await generalAreas(uploaded.value.filename, areas.value, generalOptions.value)
+          const results = res.data?.results || []
+          const texts = results.map(r => {
+            const filtered = (r.words || []).filter(w => !isInAnyMask(w.position))
+            return filtered.map(w => w.text || '').join('') || (r.text || '')
+          })
+          generalRes.value = { text: texts.join('\n') }
+          extracted.value = texts.map(t => (t || '').trim())
           msg.value = '通用区域识别完成'
         } else {
           const res = await generalWhole(uploaded.value.filename, generalOptions.value)
-          generalRes.value = res.data
-          extracted.value = [(res.data?.text || '').trim()]
+          const words = (res.data?.words || [])
+          const filtered = words.filter(w => !isInAnyMask(w.position))
+          const text = filtered.map(w => w.text || '').join('') || (res.data?.text || '')
+          generalRes.value = { ...res.data, words: filtered, text }
+          extracted.value = [text.trim()]
           msg.value = '通用整图识别完成'
         }
       } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
@@ -221,19 +218,14 @@ async function runUnifiedOCR() {
       loading.value = true; msg.value = areas.value.length ? 'doc分析（分片）中...' : 'doc分析中...'; err.value = ''
       try {
         if (areas.value.length) {
-          renderCrops()
-          const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
-        const res = await docByImages(images, docOptions.value)
-        ocrRes.value = res.data
-        // 拼接文本用于括号答案提取，并合成 words 列表便于屏蔽过滤
-        const parts = res.data?.parts || []
-        const allWords = parts.flatMap(p => (p.words || []))
-        const filteredWords = allWords.filter(w => !isInAnyMask(w.position))
-        const fullText = filteredWords.map(w => w.text || '').join('') || (res.data?.fullText || '')
-        ocrRes.value.fullText = fullText
-        ocrRes.value.words = filteredWords
-        extractAnswers()
-          msg.value = 'doc分析（分片）完成'
+          const res = await recognizeOCRWithAreas(uploaded.value.filename, areas.value, docOptions.value)
+          const results = res.data?.results || []
+          const allWords = results.flatMap(r => r.words || [])
+          const filteredWords = allWords.filter(w => !isInAnyMask(w.position))
+          const fullText = filteredWords.map(w => w.text || '').join('') || results.map(r => r.text || '').join('')
+          ocrRes.value = { fullText, words: filteredWords }
+          extractAnswers()
+          msg.value = 'doc分析（选区）完成'
         } else {
           const res = await recognizeOCR(uploaded.value.filename, docOptions.value)
           ocrRes.value = res.data

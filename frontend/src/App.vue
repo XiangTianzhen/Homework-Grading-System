@@ -176,103 +176,100 @@ async function runUnifiedOCR() {
   clearMessages()
   try {
     if (apiChoice.value === 'paper') {
-      if (selectedAreas.value.length) {
-        renderCrops()
-        const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
-        const resp = await paperCutByImages(images, paperOptions.value)
-        const results = resp.data?.results || []
-        const qs = results.flatMap(r => r.questions || [])
-        const filtered = qs.filter(q => {
-          const b = q.bbox
-          if (!b) return true
-          const cx = b.left + (b.width || 0)/2
-          const cy = b.top + (b.height || 0)/2
-          return !maskAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
-        })
-        paperRes.value = { questions: filtered }
-        const arr = filtered.map(q => (q.answer || '').trim()).filter(Boolean)
-        extracted.value = arr.length ? arr : filtered.map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
-        success.value = '试卷切题识别完成（区域）'
-      } else {
-        const res = await paperCutEdu(uploadedFile.value.filename, paperOptions.value)
-        paperRes.value = res.data
-        const qs = (paperRes.value.questions || [])
-        const filtered = qs.filter(q => {
-          const b = q.bbox
-          if (!b) return true
-          const cx = b.left + (b.width || 0)/2
-          const cy = b.top + (b.height || 0)/2
-          return !maskAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
-        })
-        const arr = filtered.map(q => (q.answer || '').trim()).filter(Boolean)
-        extracted.value = arr.length ? arr : filtered.map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
-        success.value = '试卷切题识别完成'
-      }
+      const res = await paperCutEdu(uploadedFile.value.filename, paperOptions.value)
+      const qs = (res.data?.questions || [])
+      // 先按选区过滤，再按屏蔽过滤（均使用原图坐标）
+      const inArea = selectedAreas.value.length
+        ? qs.filter(q => {
+            const b = q.bbox; if (!b) return false
+            const cx = b.left + (b.width || 0)/2
+            const cy = b.top + (b.height || 0)/2
+            return selectedAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
+          })
+        : qs
+      const filtered = inArea.filter(q => {
+        const b = q.bbox; if (!b) return true
+        const cx = b.left + (b.width || 0)/2
+        const cy = b.top + (b.height || 0)/2
+        return !maskAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
+      })
+      paperRes.value = { questions: filtered }
+      const arr = filtered.map(q => (q.answer || '').trim()).filter(Boolean)
+      extracted.value = arr.length ? arr : filtered.map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
+      success.value = selectedAreas.value.length ? '试卷切题识别完成（选区）' : '试卷切题识别完成'
     } else if (apiChoice.value === 'handwriting') {
       if (selectedAreas.value.length) {
-        renderCrops()
-        const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
-        const res = await handwritingByImages(images, handwritingOptions.value)
-        handRes.value = res.data
-        let texts = (res.data?.results || []).map(r => (r.text || '').trim())
-        const needFallbackIdx = texts.map((t, i) => ({ t, i })).filter(x => !x.t || x.t.length <= 1).map(x => x.i)
-        if (needFallbackIdx.length) {
-          const fbImages = needFallbackIdx.map(i => images[i])
-          const acc = await accurateByImages(fbImages, accurateOptions.value)
-          accurateRes.value = acc.data
-          const accResults = acc.data?.results || []
-          accResults.forEach((r, idx) => { const i = needFallbackIdx[idx]; const ft = (r.text || '').trim(); if (ft) texts[i] = ft })
-        }
-        extracted.value = texts
+        const res = await handwritingAreas(uploadedFile.value.filename, selectedAreas.value, handwritingOptions.value)
+        const results = res.data?.results || []
+        const texts = results.map(r => {
+          const words = (r.words || [])
+          const filtered = words.filter(w => !isInAnyMask(w.position))
+          return filtered.map(w => w.text || '').join('') || (r.text || '')
+        })
+        handRes.value = { text: texts.join('\n') }
+        extracted.value = texts.map(t => (t || '').trim())
         success.value = '手写区域识别完成'
       } else {
         const res = await handwritingWhole(uploadedFile.value.filename, handwritingOptions.value)
-        handRes.value = res.data
-        extracted.value = [(res.data?.text || '').trim()]
+        const words = (res.data?.words || [])
+        const filtered = words.filter(w => !isInAnyMask(w.position))
+        const text = filtered.map(w => w.text || '').join('') || (res.data?.text || '')
+        handRes.value = { ...res.data, words: filtered, text }
+        extracted.value = [text.trim()]
         success.value = '手写整图识别完成'
       }
     } else if (apiChoice.value === 'accurate') {
       if (selectedAreas.value.length) {
-        renderCrops()
-        const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
-        const res = await accurateByImages(images, accurateOptions.value)
-        accurateRes.value = res.data
-        extracted.value = (res.data?.results || []).map(r => (r.text || '').trim())
+        const res = await accurateAreas(uploadedFile.value.filename, selectedAreas.value, accurateOptions.value)
+        const results = res.data?.results || []
+        const texts = results.map(r => {
+          const words = (r.words || [])
+          const filtered = words.filter(w => !isInAnyMask(w.position))
+          return filtered.map(w => w.text || '').join('') || (r.text || '')
+        })
+        accurateRes.value = { text: texts.join('\n') }
+        extracted.value = texts.map(t => (t || '').trim())
         success.value = '高精度区域识别完成'
       } else {
         const res = await accurateWhole(uploadedFile.value.filename, accurateOptions.value)
-        accurateRes.value = res.data
-        extracted.value = [(res.data?.text || '').trim()]
+        const words = (res.data?.words || [])
+        const filtered = words.filter(w => !isInAnyMask(w.position))
+        const text = filtered.map(w => w.text || '').join('') || (res.data?.text || '')
+        accurateRes.value = { ...res.data, words: filtered, text }
+        extracted.value = [text.trim()]
         success.value = '高精度整图识别完成'
       }
     } else if (apiChoice.value === 'general') {
       if (selectedAreas.value.length) {
-        renderCrops()
-        const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
-        const res = await generalByImages(images, generalOptions.value)
-        generalRes.value = res.data
-        extracted.value = (res.data?.results || []).map(r => (r.text || '').trim())
+        const res = await generalAreas(uploadedFile.value.filename, selectedAreas.value, generalOptions.value)
+        const results = res.data?.results || []
+        const texts = results.map(r => {
+          const words = (r.words || [])
+          const filtered = words.filter(w => !isInAnyMask(w.position))
+          return filtered.map(w => w.text || '').join('') || (r.text || '')
+        })
+        generalRes.value = { text: texts.join('\n') }
+        extracted.value = texts.map(t => (t || '').trim())
         success.value = '通用区域识别完成'
       } else {
         const res = await generalWhole(uploadedFile.value.filename, generalOptions.value)
-        generalRes.value = res.data
-        extracted.value = [(res.data?.text || '').trim()]
+        const words = (res.data?.words || [])
+        const filtered = words.filter(w => !isInAnyMask(w.position))
+        const text = filtered.map(w => w.text || '').join('') || (res.data?.text || '')
+        generalRes.value = { ...res.data, words: filtered, text }
+        extracted.value = [text.trim()]
         success.value = '通用整图识别完成'
       }
     } else {
       if (selectedAreas.value.length) {
-        renderCrops()
-        const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
-        const res = await docByImages(images, docOptions.value)
-        ocrResult.value = res.data
-        const parts = res.data?.parts || []
-        const allWords = parts.flatMap(p => (p.words || []))
+        const res = await recognizeOCRWithAreas(uploadedFile.value.filename, selectedAreas.value, docOptions.value)
+        const results = res.data?.results || []
+        const allWords = results.flatMap(r => r.words || [])
         const filteredWords = allWords.filter(w => !isInAnyMask(w.position))
-        const fullText = filteredWords.map(w => w.text || '').join('') || (res.data?.fullText || '')
-        ocrResult.value.fullText = fullText
-        ocrResult.value.words = filteredWords
+        const fullText = filteredWords.map(w => w.text || '').join('') || results.map(r => r.text || '').join('')
+        ocrResult.value = { fullText, words: filteredWords }
         extractAnswersFromOCR()
-        success.value = 'doc分析（分片）完成'
+        success.value = 'doc分析（选区）完成'
       } else {
         const res = await recognizeOCR(uploadedFile.value.filename, docOptions.value)
         ocrResult.value = res.data
