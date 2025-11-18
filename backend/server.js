@@ -90,8 +90,8 @@ app.post('/grade', async (req, res) => {
     function normJudge(s) {
       const v = (s || '').trim();
       if (!v) return '';
-      if (/^(√|v|V|✔)$/i.test(v)) return '√';
-      if (/^(×|x|X|✖)$/i.test(v)) return '×';
+      if (/^(√|v|V|✔|t|T|true)$/i.test(v)) return '√';
+      if (/^(×|x|X|✖|f|F|false)$/i.test(v)) return '×';
       return v;
     }
     function normChoice(s) {

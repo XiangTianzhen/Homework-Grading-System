@@ -287,19 +287,22 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
     </div>
 
     <div class="preview-grid" v-if="showImages">
-      <div class="preview-item" v-if="imagePreview">
+      <div class="preview-item">
         <h3>原图预览</h3>
-        <el-image class="img-fit" :src="imagePreview" :preview-src-list="[imagePreview]" fit="contain" />
+        <el-image v-if="imagePreview" class="img-fit" :src="imagePreview" :preview-src-list="[imagePreview]" fit="contain" />
+        <div v-else class="placeholder">未选择图片</div>
       </div>
-      <div class="preview-item" v-if="apiChoice!=='paper' && croppedPreviews.length">
+      <div class="preview-item">
         <h3>区域裁剪预览</h3>
-        <div class="crops">
+        <div class="crops" v-if="apiChoice!=='paper' && croppedPreviews.length">
           <el-image v-for="(u,i) in croppedPreviews" :key="i" class="img-fit" :src="u" :preview-src-list="[u]" fit="contain" />
         </div>
+        <div v-else class="placeholder">未框选区域</div>
       </div>
-      <div class="preview-item" v-if="apiChoice!=='paper' && maskPreview">
+      <div class="preview-item">
         <h3>屏蔽区域预览</h3>
-        <el-image class="img-fit" :src="maskPreview" :preview-src-list="[maskPreview]" fit="contain" />
+        <el-image v-if="apiChoice!=='paper' && maskPreview" class="img-fit" :src="maskPreview" :preview-src-list="[maskPreview]" fit="contain" />
+        <div v-else class="placeholder">未设置屏蔽</div>
       </div>
     </div>
 
@@ -613,6 +616,7 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
 .preview-grid { display: flex; flex-wrap: nowrap; gap: 12px; align-items: flex-start; margin: 12px 0 }
 .preview-item { flex: 1 0 33.33%; min-width: 0 }
 .img-fit { width: 100%; height: auto; border-radius: 8px }
+  .placeholder { width: 100%; height: 200px; border: 1px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888 }
   .block { background: #fff; border-radius: 8px; padding: 12px; margin-top: 12px; border: 1px solid #eee;
     pre { white-space: pre-wrap; font-family: Consolas, Monaco, monospace; font-size: 12px }
   }

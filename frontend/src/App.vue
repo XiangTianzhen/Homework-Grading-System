@@ -38,6 +38,7 @@ const showHistory = ref(false)
 const batchResults = ref([])
 const showGenerator = ref(false)
 const showOcrPanel = ref(false)
+const showImages = ref(true)
 const apiChoice = ref('doc')
 const showSettings = ref(false)
 const docOptions = ref({ language_type: 'CHN_ENG', result_type: 'big', detect_direction: true, line_probability: true, disp_line_poly: true, words_type: 'handprint_mix', layout_analysis: true, recg_formula: true, recg_long_division: true, disp_underline_analysis: true, recg_alter: false })
@@ -390,21 +391,24 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
             </div>
           </div>
         </div>
-        <div class="preview-section" v-if="imagePreview">
+        <div class="preview-section" v-if="showImages">
           <div class="preview-grid">
             <div class="preview-item">
               <h3>原图预览</h3>
-              <img :src="imagePreview" alt="试卷预览" class="img-fit">
+              <img v-if="imagePreview" :src="imagePreview" alt="试卷预览" class="img-fit">
+              <div v-else class="placeholder">未选择图片</div>
             </div>
-            <div class="preview-item" v-if="apiChoice!=='paper' && croppedPreviews.length">
+            <div class="preview-item">
               <h3>区域裁剪预览</h3>
-              <div class="crops">
+              <div class="crops" v-if="apiChoice!=='paper' && croppedPreviews.length">
                 <img v-for="(u,i) in croppedPreviews" :key="i" class="img-fit" :src="u" />
               </div>
+              <div v-else class="placeholder">未框选区域</div>
             </div>
-            <div class="preview-item" v-if="apiChoice!=='paper' && maskPreview">
+            <div class="preview-item">
               <h3>屏蔽区域预览</h3>
-              <img class="img-fit" :src="maskPreview" />
+              <img v-if="apiChoice!=='paper' && maskPreview" class="img-fit" :src="maskPreview" />
+              <div v-else class="placeholder">未设置屏蔽</div>
             </div>
           </div>
         </div>
@@ -428,6 +432,7 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
           <button class="btn" @click="showErrorBook = true">错题本</button>
           <button class="btn" @click="showHistory = true">历史记录</button>
           <button class="btn" @click="showOcrPanel = !showOcrPanel">{{ showOcrPanel ? '关闭OCR结果' : '显示OCR结果' }}</button>
+          <button class="btn" @click="showImages = !showImages">{{ showImages ? '隐藏图片' : '显示图片' }}</button>
           
         </div>
         <div class="ocr-panel" v-if="showOcrPanel">
@@ -839,6 +844,7 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
 .preview-grid { display: flex; flex-wrap: nowrap; gap: 12px; align-items: flex-start; margin: 12px 0 }
 .preview-item { flex: 1 0 33.33%; min-width: 0 }
 .img-fit { width: 100%; height: auto; border-radius: 8px }
+.placeholder { width: 100%; height: 200px; border: 1px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888 }
 .mask-words { display: flex; gap: 8px; align-items: center; margin-bottom: 8px;
   input { flex: 1; padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px }
 }
