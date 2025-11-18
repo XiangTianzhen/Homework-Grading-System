@@ -122,12 +122,38 @@ async function runUnifiedOCR() {
   if (apiChoice.value === 'paper') {
     loading.value = true; msg.value = '试卷切题识别中...'; err.value = ''
     try {
-      const res = await paperCutEdu(uploaded.value.filename, paperOptions.value)
-      paperRes.value = res.data
-      // 从 questions 中尝试提取答案文本
-      const arr = (paperRes.value.questions || []).map(q => (q.answer || '').trim()).filter(Boolean)
-      extracted.value = arr.length ? arr : (paperRes.value.questions || []).map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
-      msg.value = '试卷切题识别完成'
+      if (areas.value.length) {
+        renderCrops()
+        const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
+        const resp = await paperCutByImages(images, paperOptions.value)
+        const results = resp.data?.results || []
+        const qs = results.flatMap(r => r.questions || [])
+        const filtered = qs.filter(q => {
+          const b = q.bbox
+          if (!b) return true
+          const cx = b.left + (b.width || 0)/2
+          const cy = b.top + (b.height || 0)/2
+          return !maskAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
+        })
+        paperRes.value = { questions: filtered }
+        const arr = filtered.map(q => (q.answer || '').trim()).filter(Boolean)
+        extracted.value = arr.length ? arr : filtered.map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
+        msg.value = '试卷切题识别完成（区域）'
+      } else {
+        const res = await paperCutEdu(uploaded.value.filename, paperOptions.value)
+        const qs = (res.data?.questions || [])
+        const filtered = qs.filter(q => {
+          const b = q.bbox
+          if (!b) return true
+          const cx = b.left + (b.width || 0)/2
+          const cy = b.top + (b.height || 0)/2
+          return !maskAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
+        })
+        paperRes.value = { questions: filtered }
+        const arr = filtered.map(q => (q.answer || '').trim()).filter(Boolean)
+        extracted.value = arr.length ? arr : filtered.map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
+        msg.value = '试卷切题识别完成'
+      }
     } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
     renderCrops()
   } else {
@@ -270,8 +296,8 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
       <input type="file" ref="fileInput" @change="handleFileSelect" accept="image/*" class="file-input" />
       <button class="btn" @click="chooseFile">选择图片</button>
       <button class="btn" @click="upload" :disabled="!selectedFile || loading">{{ loading ? '上传中...' : '上传' }}</button>
-      <button class="btn" v-if="apiChoice!=='paper'" @click="showAreaSelector = true" :disabled="!imagePreview">区域框选</button>
-      <button class="btn" v-if="apiChoice!=='paper'" @click="showMaskSelector = true" :disabled="!imagePreview">屏蔽区域</button>
+      <button class="btn" @click="showAreaSelector = true" :disabled="!imagePreview">区域框选</button>
+      <button class="btn" @click="showMaskSelector = true" :disabled="!imagePreview">屏蔽区域</button>
       <el-select v-model="apiChoice" placeholder="选择识别接口" style="width: 220px">
         <el-option label="试卷分析与识别（doc_analysis）" value="doc" />
         <el-option label="试卷切题识别（paper_cut_edu）" value="paper" />
@@ -289,19 +315,19 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
     <div class="preview-grid" v-if="showImages">
       <div class="preview-item">
         <h3>原图预览</h3>
-        <el-image v-if="imagePreview" class="img-fit" :src="imagePreview" :preview-src-list="[imagePreview]" fit="contain" />
+        <el-image v-if="imagePreview" class="img-fit" :src="imagePreview" fit="contain" />
         <div v-else class="placeholder">未选择图片</div>
       </div>
       <div class="preview-item">
         <h3>区域裁剪预览</h3>
         <div class="crops" v-if="apiChoice!=='paper' && croppedPreviews.length">
-          <el-image v-for="(u,i) in croppedPreviews" :key="i" class="img-fit" :src="u" :preview-src-list="[u]" fit="contain" />
+          <el-image v-for="(u,i) in croppedPreviews" :key="i" class="img-fit" :src="u" fit="contain" />
         </div>
         <div v-else class="placeholder">未框选区域</div>
       </div>
       <div class="preview-item">
         <h3>屏蔽区域预览</h3>
-        <el-image v-if="apiChoice!=='paper' && maskPreview" class="img-fit" :src="maskPreview" :preview-src-list="[maskPreview]" fit="contain" />
+        <el-image v-if="apiChoice!=='paper' && maskPreview" class="img-fit" :src="maskPreview" fit="contain" />
         <div v-else class="placeholder">未设置屏蔽</div>
       </div>
     </div>

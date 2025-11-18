@@ -69,7 +69,9 @@ app.post('/ocr', async (req, res) => {
       res.json({ message: 'OCR识别成功', answers: result.answers, fullText: result.fullText, words: result.words, rawResponse: result.rawResponse });
     } else {
       logger.writeError('doc_analysis_failed', new Error(result.error), { filename, duration_ms: Date.now() - t0 });
-      if ((result.error || '').includes('未识别到文字')) {
+      const errMsg = result.error || '';
+      const noText = /未识别到文字|未识别到手写文字|no\s*text|words_result\s*is\s*empty/i.test(errMsg);
+      if (noText) {
         res.json({ message: '未识别到文字', answers: [], fullText: '', words: [] });
       } else {
         res.status(500).json({ error: result.error });
@@ -164,11 +166,40 @@ app.post('/paper-cut', async (req, res) => {
       logger.writeEnd('paper_cut_edu', { questions: result.questions.length, duration_ms: Date.now() - t0 });
       res.json({ message: '试卷切题识别成功', questions: result.questions, rawResponse: result.rawResponse });
     } else {
-      logger.writeError('paper_cut_edu_failed', new Error(result.error), { filename });
-      res.status(500).json({ error: result.error });
+      const errMsg = result.error || '';
+      const noQ = /未识别到题目|no\s*question/i.test(errMsg);
+      if (noQ) {
+        logger.writeEnd('paper_cut_edu', { questions: 0, duration_ms: Date.now() - t0 });
+        res.json({ message: '未识别到题目', questions: [], rawResponse: result.rawResponse || null });
+      } else {
+        logger.writeError('paper_cut_edu_failed', new Error(result.error), { filename });
+        res.status(500).json({ error: result.error });
+      }
     }
   } catch (error) {
     logger.writeError('paper_cut_edu_exception', error, { route: '/paper-cut' });
+    res.status(500).json({ error: '试卷切题识别失败: ' + error.message });
+  }
+});
+
+// 试卷切题识别：图片数组（用于前端裁剪区域）
+app.post('/paper-cut/images', async (req, res) => {
+  try {
+    const { images, options } = req.body;
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      return res.status(400).json({ error: '请提供图片数组' });
+    }
+    const t0 = Date.now();
+    logger.writeStart('paper_cut_edu_images', { imagesCount: images.length });
+    const r = await baiduOCR.paperCutEduImages(images, options || {});
+    if (!r.success) {
+      logger.writeError('paper_cut_edu_failed', new Error(r.error));
+      return res.status(500).json({ error: r.error });
+    }
+    logger.writeEnd('paper_cut_edu_images', { duration_ms: Date.now() - t0 });
+    res.json({ message: '识别完成', results: r.results });
+  } catch (error) {
+    logger.writeError('paper_cut_edu_exception', error, { route: '/paper-cut/images' });
     res.status(500).json({ error: '试卷切题识别失败: ' + error.message });
   }
 });

@@ -19,7 +19,12 @@ class BaiduOCRService {
     if (!source) throw new Error('缺少图片源');
     if (typeof source === 'string') {
       const idx = source.indexOf('base64,');
-      return idx >= 0 ? source.substring(idx + 7) : source;
+      if (idx >= 0) return source.substring(idx + 7);
+      if (fs.existsSync(source)) {
+        const buf = fs.readFileSync(source);
+        return buf.toString('base64');
+      }
+      return source;
     }
     if (source.base64) {
       const s = source.base64;
@@ -130,6 +135,25 @@ class BaiduOCRService {
 
       lines = lines.map(s => (typeof s === 'string' ? s.trim() : '')).filter(s => s.length > 0);
       if (lines.length === 0) {
+        // 回退到高精度通用识别，提高无区域整图的可用性
+        const fallbackAcc = await this.accurateBasicOnly(imagePathOrBase64, options);
+        if (fallbackAcc && fallbackAcc.success) {
+          return {
+            success: true,
+            text: fallbackAcc.text,
+            words: fallbackAcc.words,
+            rawResponse: { primary: data, fallback: 'accurate_basic' }
+          };
+        }
+        const fallbackGen = await this.generalBasicOnly(imagePathOrBase64, options);
+        if (fallbackGen && fallbackGen.success) {
+          return {
+            success: true,
+            text: fallbackGen.text,
+            words: fallbackGen.words,
+            rawResponse: { primary: data, fallback: 'general_basic' }
+          };
+        }
         return { success: false, error: '未识别到文字', rawResponse: data };
       }
 
@@ -161,11 +185,10 @@ class BaiduOCRService {
   }
 
   // 试卷切题识别（paper_cut_edu）
-  async paperCutEdu(imagePath, options = {}) {
+  async paperCutEdu(imagePathOrBase64, options = {}) {
     try {
       const accessToken = await this.getAccessToken();
-      const imageBuffer = fs.readFileSync(imagePath);
-      const base64Image = imageBuffer.toString('base64');
+      const base64Image = this.getImageBase64(typeof imagePathOrBase64 === 'string' ? imagePathOrBase64 : (imagePathOrBase64.base64 ? imagePathOrBase64 : { path: imagePathOrBase64 }));
 
       const params = new URLSearchParams();
       params.set('image', base64Image);
@@ -232,6 +255,19 @@ class BaiduOCRService {
       return { success: true, questions, rawResponse: data };
     } catch (error) {
       return { success: false, error: '试卷切题识别失败: ' + (error.response?.data?.error_msg || error.message) };
+    }
+  }
+
+  async paperCutEduImages(imagesBase64, options = {}) {
+    try {
+      const results = []
+      for (const img of imagesBase64) {
+        const r = await this.paperCutEdu({ base64: img }, options)
+        results.push(r.success ? { success: true, questions: r.questions } : { success: false, error: r.error })
+      }
+      return { success: true, results }
+    } catch (e) {
+      return { success: false, error: '试卷切题图片批量识别失败: ' + e.message }
     }
   }
 
@@ -459,7 +495,7 @@ class BaiduOCRService {
   // 分析试卷答案（根据位置信息）
   async analyzePaperAnswers(imagePath, questionAreas = [], options = {}) {
     try {
-      const ocrResult = await this.docAnalysis(imagePath, options);
+      const ocrResult = await this.docAnalysis({ path: imagePath }, options);
       
       if (!ocrResult.success) {
         return ocrResult;
@@ -522,7 +558,7 @@ class BaiduOCRService {
   // 分析指定区域
   async analyzeArea(imagePath, area, options = {}) {
     try {
-      const ocrResult = await this.docAnalysis(imagePath, options);
+      const ocrResult = await this.docAnalysis({ path: imagePath }, options);
       
       if (!ocrResult.success) {
         return ocrResult;

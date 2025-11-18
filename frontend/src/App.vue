@@ -10,7 +10,7 @@ import { QuestionFilled } from '@element-plus/icons-vue'
 import HistoryPanel from './components/HistoryPanel.vue'
 import TestImageGenerator from './components/TestImageGenerator.vue'
 import { ref, computed, watch } from 'vue'
-import { uploadPaper as uploadPaperAPI, gradePaper as gradePaperAPI, batchProcess, recognizeOCR, recognizeOCRWithAreas, paperCutEdu, handwritingAreas, accurateAreas, generalAreas, handwritingByImages, accurateByImages, generalByImages, docByImages, handwritingWhole, accurateWhole, generalWhole } from './api'
+import { uploadPaper as uploadPaperAPI, gradePaper as gradePaperAPI, batchProcess, recognizeOCR, recognizeOCRWithAreas, paperCutEdu, paperCutByImages, handwritingAreas, accurateAreas, generalAreas, handwritingByImages, accurateByImages, generalByImages, docByImages, handwritingWhole, accurateWhole, generalWhole } from './api'
 
 // 选择的试卷文件与预览
 const selectedFile = ref(null)
@@ -176,11 +176,38 @@ async function runUnifiedOCR() {
   clearMessages()
   try {
     if (apiChoice.value === 'paper') {
-      const res = await paperCutEdu(uploadedFile.value.filename, paperOptions.value)
-      paperRes.value = res.data
-      const arr = (paperRes.value.questions || []).map(q => (q.answer || '').trim()).filter(Boolean)
-      extracted.value = arr.length ? arr : (paperRes.value.questions || []).map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
-      success.value = '试卷切题识别完成'
+      if (selectedAreas.value.length) {
+        renderCrops()
+        const images = (croppedPreviews.value || []).map(u => (u || '').split(',')[1])
+        const resp = await paperCutByImages(images, paperOptions.value)
+        const results = resp.data?.results || []
+        const qs = results.flatMap(r => r.questions || [])
+        const filtered = qs.filter(q => {
+          const b = q.bbox
+          if (!b) return true
+          const cx = b.left + (b.width || 0)/2
+          const cy = b.top + (b.height || 0)/2
+          return !maskAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
+        })
+        paperRes.value = { questions: filtered }
+        const arr = filtered.map(q => (q.answer || '').trim()).filter(Boolean)
+        extracted.value = arr.length ? arr : filtered.map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
+        success.value = '试卷切题识别完成（区域）'
+      } else {
+        const res = await paperCutEdu(uploadedFile.value.filename, paperOptions.value)
+        paperRes.value = res.data
+        const qs = (paperRes.value.questions || [])
+        const filtered = qs.filter(q => {
+          const b = q.bbox
+          if (!b) return true
+          const cx = b.left + (b.width || 0)/2
+          const cy = b.top + (b.height || 0)/2
+          return !maskAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
+        })
+        const arr = filtered.map(q => (q.answer || '').trim()).filter(Boolean)
+        extracted.value = arr.length ? arr : filtered.map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
+        success.value = '试卷切题识别完成'
+      }
     } else if (apiChoice.value === 'handwriting') {
       if (selectedAreas.value.length) {
         renderCrops()

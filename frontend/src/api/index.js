@@ -36,6 +36,9 @@ export const recognizeOCRWithAreas = (filename, areas, options = {}) =>
 export const paperCutEdu = (filename, options = {}) =>
   api.post('/paper-cut', { filename, options })
 
+export const paperCutByImages = (images, options = {}) =>
+  api.post('/paper-cut/images', { images, options })
+
 export const handwritingAreas = (filename, areas, options = {}) =>
   api.post('/ocr/handwriting/areas', { filename, areas, options })
 
