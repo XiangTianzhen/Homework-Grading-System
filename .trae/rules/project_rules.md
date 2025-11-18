@@ -9,7 +9,7 @@
 ## 2. 技术栈与运行
 - 前端：Vue3 + Vite + Vue Router + SCSS
 - 后端：Node.js + Express
-- OCR：百度智能云手写识别（文档分析接口）
+- OCR：百度智能云 doc_analysis / paper_cut_edu / handwriting / accurate_basic / general_basic
 - 端口：后端 `http://localhost:3000`；前端开发 `http://localhost:5173`
 - 启动：项目根执行 `npm run dev`（并发前后端）
 - 接口前缀与代理：统一使用 `/api/*`，通过 Vite 代理到后端 `http://localhost:3000`
@@ -20,9 +20,10 @@
 - 页面：
   - `/workspace` 工作台：上传、区域OCR、评分、错题本、历史、OCR结果面板
   - `/generator` 生成器：生成测试图片、设置折叠、显示区域框、一键应用识别区域
+  - `/test-ocr` 测试页：多模型识别、单/多区域框选、屏蔽区域、参数设置、结果预览
   - `/` 重定向到 `/workspace`
 - 约束：生成器仅在 `/generator` 展示；工作台不得嵌入生成器
-- 文件：`frontend/src/views/WorkspaceView.vue`、`frontend/src/views/GeneratorView.vue`
+- 文件：`frontend/src/views/WorkspaceView.vue`、`frontend/src/views/GeneratorView.vue`、`frontend/src/views/OCRTestView.vue`
 - 关键组件：
   - `AnswerEditor.vue` 标准答案编辑
   - `AreaSelector.vue` 手动框选区域
@@ -75,15 +76,46 @@
 ## 7. API接口
 - 健康检查 `GET /` → `{ message }`
 - 上传 `POST /upload`（FormData: `paper`）→ `{ message, filename, path }`
-- 整图OCR `POST /ocr`（`{ filename }`）→ `{ message, answers, fullText, words }`
 - 评分 `POST /grade`（`{ answers:[{answer,score}], studentAnswers:[str] }`）→ `{ score, totalScore, percentage }`
-- 区域OCR `POST /ocr/areas`（`{ filename, areas:[{x,y,width,height}] }`）→ `{ message, results:[{ success, text, area, words }] }`
+
+- 试卷分析与识别（doc_analysis）
+  - 整图识别 `POST /ocr`（`{ filename, options? }`）→ `{ message, answers, fullText, words }`
+  - 分片识别并拼接 `POST /ocr/doc/images`（`{ images:[base64], options? }`）→ `{ message, fullText, parts:[{ success, text, words }] }`
+
+- 试卷切题识别（paper_cut_edu）
+  - `POST /paper-cut`（`{ filename, options? }`）→ `{ message, questions:[{ type, stem, answer, options, bbox, probability }], rawResponse }`
+
+- 手写文字识别（handwriting）
+  - 整图识别 `POST /ocr/handwriting`（`{ filename, options? }`）→ `{ message, text, words }`
+  - 区域识别（定位过滤）`POST /ocr/handwriting/areas`（`{ filename, areas, options? }`）→ `{ message, results:[{ success, text, area, words }] }`
+  - 图片数组识别 `POST /ocr/handwriting/images`（`{ images:[base64], options? }`）→ `{ message, results:[{ success, text, words }] }`
+
+- 通用文字识别（高精度版 accurate_basic）
+  - 整图识别 `POST /ocr/accurate`（`{ filename, options? }`）→ `{ message, text, words }`
+  - 区域识别 `POST /ocr/accurate/areas`（`{ filename, areas, options? }`）→ `{ message, results:[{ success, text, area, words }] }`
+  - 图片数组识别 `POST /ocr/accurate/images`（`{ images:[base64], options? }`）→ `{ message, results:[{ success, text, words }] }`
+
+- 通用文字识别（标准版 general_basic）
+  - 整图识别 `POST /ocr/general`（`{ filename, options? }`）→ `{ message, text, words }`
+  - 区域识别 `POST /ocr/general/areas`（`{ filename, areas, options? }`）→ `{ message, results:[{ success, text, area, words }] }`
+  - 图片数组识别 `POST /ocr/general/images`（`{ images:[base64], options? }`）→ `{ message, results:[{ success, text, words }] }`
+
+- 旧版通用区域识别（保留）
+  - `POST /ocr/areas`（`{ filename, areas:[{x,y,width,height}], options? }`）→ `{ message, results:[{ success, text, area, words }] }`
+
 - 批量处理 `POST /batch`（FormData: `papers[]`）→ `{ message, results:[...] }`
-- 日志事件键：`server_start`、`server_init`、`ping_root`、`upload_success`、`ocr_success/ocr_failed/ocr_exception`、`area_ocr_success/area_ocr_failed`、`grade_done/grade_failed`、`batch_process_done/batch_process_failed`
+
+- 日志事件键：`server_start/server_init/ping_root/upload_start/upload_end`，`doc_analysis_start/doc_analysis_end/doc_analysis_failed/doc_analysis_exception`，`area_ocr_start/area_ocr_end/area_ocr_failed`，`paper_cut_edu_start/paper_cut_edu_end/paper_cut_edu_failed/paper_cut_edu_exception`，`handwriting/accurate_basic/general_basic` 系列的 start/end/failed/exception，`grade_done/grade_failed`，`batch_process_done/batch_process_failed`
 
 ## 8. OCR工具与配置
-- 接口：授权 `https://aip.baidubce.com/oauth/2.0/token`；文档分析 `https://aip.baidubce.com/rest/2.0/ocr/v1/doc_analysis`
-- 参数示例：`language_type=CHN_ENG`、`result_type=big`、`detect_direction=true`、`words_type=handprint_mix`
+- 接口：授权 `https://aip.baidubce.com/oauth/2.0/token`；
+  - 试卷分析与识别 `https://aip.baidubce.com/rest/2.0/ocr/v1/doc_analysis`
+  - 试卷切题识别 `https://aip.baidubce.com/rest/2.0/ocr/v1/paper_cut_edu`
+  - 手写文字识别 `https://aip.baidubce.com/rest/2.0/ocr/v1/handwriting`
+  - 通用文字识别（高精度）`https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic`
+  - 通用文字识别（标准）`https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic`
+- 参数示例：`language_type=CHN_ENG`、`result_type=big`、`detect_direction=true`、`words_type=handprint_mix` 等
+- 请求体大小：后端 `express.json/urlencoded` 限制提升为 `50MB`
 - 环境变量：`BAIDU_OCR_API_KEY`、`BAIDU_OCR_SECRET_KEY`
   - PowerShell 当前会话：`$env:BAIDU_OCR_API_KEY="..."`；`$env:BAIDU_OCR_SECRET_KEY="..."`
 - Token策略：令牌提前5分钟判过期；失败抛错并记录日志
@@ -100,7 +132,14 @@
 
 ## 10. 日志规范
 - 路径：`log/`；文件名：`yyyyMMddHHmmss.log`
-- 记录：事件名、文件名、区域坐标、识别文本摘要、得分、耗时；异常完整记录
+- 结构：`[ISO][level] message {json}`，包含 `start/end/failed/exception`
+- 记录：事件名、文件名、参数摘要、区域坐标、识别文本摘要、得分、耗时；异常完整记录与栈
+- 示例事件：
+  - 上传：`upload_start/upload_end`
+  - doc_analysis：`doc_analysis_start/doc_analysis_end/doc_analysis_failed/doc_analysis_exception`
+  - 区域识别：`area_ocr_start/area_ocr_end/area_ocr_failed`
+  - 切题识别：`paper_cut_edu_start/paper_cut_edu_end/...`
+  - 手写/高精度/通用：`*_start/*_end/*_failed/*_exception`
 
 ## 11. Git提交与远程同步
 - 远程：`github` 与 `gitee`
@@ -125,14 +164,25 @@
 - 敏感动作需确认：远程推送、批量修改文件、引入新后端/数据库、访问非工作区文件
 
 ## 14. 代码位置索引（溯源）
-- 健康检查：`backend/server.js:36-39`
-- 上传：`backend/server.js:42-46`
-- 整图OCR：`backend/server.js:49-74`
-- 评分：`backend/server.js:77-94`
-- 区域OCR：`backend/server.js:97-121`
-- 批量处理：`backend/server.js:124-166`
-- OCR服务：`backend/services/baiduOCR.js:5-9,17-45,48-106,108-149,151-160,162-189`
-- 日志工具：`backend/utils/logger.js:21-28`
+- 健康检查：`backend/server.js:38-41`
+- 上传：`backend/server.js:44-49`
+- doc_analysis（整图）：`backend/server.js:52-82`
+- 评分：`backend/server.js:85-102`
+- 通用区域OCR（旧）：`backend/server.js:105-130`
+- 试卷切题识别：`backend/server.js:133-154`
+- 手写区域识别：`backend/server.js:157-178`
+- 高精度区域识别：`backend/server.js:181-202`
+- doc_analysis 图片数组：`backend/server.js:205-224`
+- 手写整图：`backend/server.js:227-239`
+- 高精度整图：`backend/server.js:241-253`
+- 通用整图：`backend/server.js:255-267`
+- 手写图片数组：`backend/server.js:269-280`
+- 高精度图片数组：`backend/server.js:283-293`
+- 通用图片数组：`backend/server.js:295-306`
+- 通用区域识别：`backend/server.js:309-328`
+- 批量处理：`backend/server.js:331-373`
+- OCR服务：`backend/services/baiduOCR.js:66-149,150-161,163-236,238-315,317-357,359-386,388-457,459-551`
+- 日志工具：`backend/utils/logger.js:19-40`
 
 ## 15. 变更说明
 - 本规则更新后，应在最近一次提交中说明，并检查 `README.md` 是否需新增链接或说明

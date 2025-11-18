@@ -9,9 +9,11 @@
 - 前端路由：
   - `/workspace` 工作台：上传/OCR/评分/错题本/历史/题型设置
   - `/generator` 生成器：试卷图片生成、设置折叠、导出识别区域与叠加显示
+  - `/test-ocr` 测试页：多模型识别、区域框选、屏蔽区域、参数设置、结果预览
   - `/` → 重定向到 `/workspace`
 - 应用壳：`frontend/src/AppShell.vue`（顶栏导航 + RouterView）
-- 后端接口：`/upload`、`/ocr`、`/ocr/areas`、`/grade`、`/batch`
+- 错误拦截：前端 Axios 拦截器按状态码输出友好文案（400/404/413/500）并附加后端错误说明
+- 后端接口：覆盖试卷分析与识别、试卷切题识别、手写文字识别、通用文字识别（高精度/标准）等整图与分片场景
 
 ## 目录结构（更新）
 ```
@@ -52,18 +54,47 @@ $env:BAIDU_OCR_SECRET_KEY = "你的Secret Key"
 - 前端统一以 `/api/*` 调用接口，并通过 Vite 代理到后端 `http://localhost:3000`
 - PowerShell 命令链请使用 `;` 分隔（避免 `&&` 在 PS5 下的问题）
 
+**请求体大小**
+- 后端 `express.json/urlencoded` 已提升到 `50MB`，建议裁剪图片数量与尺寸合理控制，避免触发 `413`。
+
 ## API 概览（后端）
 - `GET /`：健康检查 → `{ message }`
-- `POST /upload`（FormData: `paper`）→ `{ message, filename, path }`
-- `POST /ocr`（JSON: `{ filename }`）→ `{ message, answers, fullText, words }`
-- `POST /grade`（JSON: `{ answers:[{answer,score}], studentAnswers:[string] }`）→ `{ score, totalScore, percentage }`
-- `POST /ocr/areas`（JSON: `{ filename, areas:[{x,y,width,height}] }`）→ `{ message, results:[{ success, text, area, words }] }`
-- `POST /batch`（FormData: `papers`）→ `{ message, results:[{ filename, originalname, success, answers, fullText, error }] }`
+- 上传 `POST /upload`（FormData: `paper`）→ `{ message, filename, path }`
+- 评分 `POST /grade`（`{ answers:[{answer,score}], studentAnswers:[string] }`）→ `{ score, totalScore, percentage }`
+
+**试卷分析与识别（doc_analysis）**
+- 整图识别 `POST /ocr`（`{ filename, options? }`）→ `{ message, answers, fullText, words }`
+- 分片识别并拼接 `POST /ocr/doc/images`（`{ images:[base64], options? }`）→ `{ message, fullText, parts:[{ success, text, words }] }`
+
+**试卷切题识别（paper_cut_edu）**
+- `POST /paper-cut`（`{ filename, options? }`）→ `{ message, questions:[{ type, stem, answer, options, bbox, probability }], rawResponse }`
+
+**手写文字识别（handwriting）**
+- 区域裁剪图片识别 `POST /ocr/handwriting/images`（`{ images:[base64], options? }`）→ `{ message, results:[{ success, text, words }] }`
+- 整图识别 `POST /ocr/handwriting`（`{ filename, options? }`）→ `{ message, text, words }`
+
+**通用文字识别（高精度版 accurate_basic）**
+- 区域裁剪图片识别 `POST /ocr/accurate/images`（`{ images:[base64], options? }`）→ `{ message, results:[{ success, text, words }] }`
+- 整图识别 `POST /ocr/accurate`（`{ filename, options? }`）→ `{ message, text, words }`
+
+**通用文字识别（标准版 general_basic）**
+- 区域裁剪图片识别 `POST /ocr/general/images`（`{ images:[base64], options? }`）→ `{ message, results:[{ success, text, words }] }`
+- 整图识别 `POST /ocr/general`（`{ filename, options? }`）→ `{ message, text, words }`
+
+**通用区域识别（旧版）**
+- `POST /ocr/areas`（`{ filename, areas:[{x,y,width,height}], options? }`）→ `{ message, results:[{ success, text, area, words }] }`
+- 批量处理 `POST /batch`（FormData: `papers`）→ `{ message, results:[{ filename, originalname, success, answers, fullText, error }] }`
 
 ## 日志规范
 - 路径：`backend/log/`
-- 文件名：`yyyyMMddHHmmss.log`（本地时区）
-- 记录项建议：事件名、文件名、区域坐标、识别文本与置信度、得分与耗时、异常信息
+- 文件名：`yyyyMMddHHmmss.log`
+- 结构：`[ISO][level] message {json}`
+- 记录项：
+  - 上传：`upload_start/upload_end`（原文件名/大小/类型/保存路径）
+  - doc_analysis：`doc_analysis_start/doc_analysis_end`（文件名、参数、耗时），失败 `doc_analysis_failed`，异常 `doc_analysis_exception`
+  - 区域识别：`area_ocr_start/area_ocr_end`（区域数量、耗时），失败/异常
+  - 切题识别：`paper_cut_edu_start/paper_cut_edu_end`（题目数、耗时），失败/异常
+  - 手写/高精度/通用（整图与图片数组）均记录开始/结束/耗时，失败/异常含栈
 
 ## 样式与 SCSS 嵌套
 - 强制使用 `<style lang="scss" scoped>` 并采用嵌套结构（示例）：
@@ -94,6 +125,7 @@ $env:BAIDU_OCR_SECRET_KEY = "你的Secret Key"
 - 鸣谢：百度智能云 OCR · Vue · Vite · Express
 
 ## FAQ
-- OCR 精度不稳定？建议清晰度≥300DPI，手写工整；优先使用区域OCR并开启“显示区域框”检查覆盖
-- 令牌获取失败？确认已设置 `BAIDU_OCR_API_KEY` 与 `BAIDU_OCR_SECRET_KEY`，重启终端使其生效
-- 4K 显示过小？已使用 `clamp()` 动态字号与间距；如需更大字号，可在 `_variables.scss` 中调整
+- OCR 精度不稳定？建议清晰度≥300DPI；对符号（√/×）可用“手写文字识别”，并开启“高精度兜底”。
+- 413 请求体过大？减少裁剪图片数量或尺寸，或改用“整图识别”。
+- 令牌获取失败？确认已设置 `BAIDU_OCR_API_KEY` 与 `BAIDU_OCR_SECRET_KEY`，重启终端使其生效。
+- 4K 显示过小？已使用 `clamp()` 动态字号与间距；如需更大字号，可在 `_variables.scss` 中调整。
