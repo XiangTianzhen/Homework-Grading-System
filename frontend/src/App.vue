@@ -38,9 +38,6 @@ const showHistory = ref(false)
 const batchResults = ref([])
 const showGenerator = ref(false)
 const showOcrPanel = ref(false)
-const showImages = ref(false)
-const showUploadRes = ref(false)
-const showOcrRes = ref(false)
 const apiChoice = ref('doc')
 const showSettings = ref(false)
 const docOptions = ref({ language_type: 'CHN_ENG', result_type: 'big', detect_direction: true, line_probability: true, disp_line_poly: true, words_type: 'handprint_mix', layout_analysis: true, recg_formula: true, recg_long_division: true, disp_underline_analysis: true, recg_alter: false })
@@ -394,8 +391,22 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
           </div>
         </div>
         <div class="preview-section" v-if="imagePreview">
-          <h3>试卷预览</h3>
-          <img :src="imagePreview" alt="试卷预览" class="preview-image">
+          <div class="preview-grid">
+            <div class="preview-item">
+              <h3>原图预览</h3>
+              <img :src="imagePreview" alt="试卷预览" class="img-fit">
+            </div>
+            <div class="preview-item" v-if="apiChoice!=='paper' && croppedPreviews.length">
+              <h3>区域裁剪预览</h3>
+              <div class="crops">
+                <img v-for="(u,i) in croppedPreviews" :key="i" class="img-fit" :src="u" />
+              </div>
+            </div>
+            <div class="preview-item" v-if="apiChoice!=='paper' && maskPreview">
+              <h3>屏蔽区域预览</h3>
+              <img class="img-fit" :src="maskPreview" />
+            </div>
+          </div>
         </div>
         <div class="btn-group" v-if="selectedFile">
           <button class="btn" @click="uploadPaper" :disabled="loading">{{ loading ? '上传中...' : '上传试卷' }}</button>
@@ -417,9 +428,7 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
           <button class="btn" @click="showErrorBook = true">错题本</button>
           <button class="btn" @click="showHistory = true">历史记录</button>
           <button class="btn" @click="showOcrPanel = !showOcrPanel">{{ showOcrPanel ? '关闭OCR结果' : '显示OCR结果' }}</button>
-          <button class="btn" @click="showImages = !showImages">{{ showImages ? '隐藏图片' : '显示图片' }}</button>
-          <button class="btn" @click="showUploadRes = !showUploadRes">{{ showUploadRes ? '隐藏上传返回' : '显示上传返回' }}</button>
-          <button class="btn" @click="showOcrRes = !showOcrRes">{{ showOcrRes ? '隐藏识别返回' : '显示识别返回' }}</button>
+          
         </div>
         <div class="ocr-panel" v-if="showOcrPanel">
           <h3>提取答案（按顺序）</h3>
@@ -762,23 +771,7 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
         <span>屏蔽区域数：{{ maskAreas.length }}</span>
       </div>
     </div>
-
-    <div class="preview-grid" v-if="showImages">
-      <div class="preview-item" v-if="imagePreview">
-        <h3>原图预览</h3>
-        <img :src="imagePreview" class="img-fit" />
-      </div>
-      <div class="preview-item" v-if="apiChoice!=='paper' && croppedPreviews.length">
-        <h3>区域裁剪预览</h3>
-        <div class="crops">
-          <img v-for="(u,i) in croppedPreviews" :key="i" class="img-fit" :src="u" />
-        </div>
-      </div>
-      <div class="preview-item" v-if="apiChoice!=='paper' && maskPreview">
-        <h3>屏蔽区域预览</h3>
-        <img class="img-fit" :src="maskPreview" />
-      </div>
-    </div>
+    
   </div>
   
 </template>

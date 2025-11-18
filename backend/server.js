@@ -87,11 +87,31 @@ app.post('/grade', async (req, res) => {
     const { answers, studentAnswers } = req.body;
     let score = 0;
     let totalScore = 0;
+    function normJudge(s) {
+      const v = (s || '').trim();
+      if (!v) return '';
+      if (/^(√|v|V|✔)$/i.test(v)) return '√';
+      if (/^(×|x|X|✖)$/i.test(v)) return '×';
+      return v;
+    }
+    function normChoice(s) {
+      const v = (s || '').trim();
+      if (!v) return '';
+      return v.toUpperCase();
+    }
+    function normFill(s) {
+      return (s || '').trim();
+    }
     for (let i = 0; i < answers.length; i++) {
       totalScore += answers[i].score;
-      if (studentAnswers[i] && studentAnswers[i].trim() === answers[i].answer.trim()) {
-        score += answers[i].score;
-      }
+      const type = answers[i].type || 'fill';
+      const sa = studentAnswers[i] || '';
+      const std = answers[i].answer || '';
+      let ok = false;
+      if (type === 'judge') ok = normJudge(sa) === normJudge(std);
+      else if (type === 'choice') ok = normChoice(sa) === normChoice(std);
+      else ok = normFill(sa) === normFill(std);
+      if (ok) score += answers[i].score;
     }
     logger.write('grade_done', { score, totalScore });
     res.json({ score, totalScore, percentage: Math.round((score / totalScore) * 100) });
