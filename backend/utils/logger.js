@@ -22,9 +22,20 @@ class Logger {
     ensureDir(this.baseDir);
     this.file = path.join(this.baseDir, `${format(new Date())}.log`);
   }
-  write(message, data) {
-    const line = `[${new Date().toISOString()}] ${message}${data ? ' ' + JSON.stringify(data) : ''}\n`;
+  write(message, data, level = 'info') {
+    const payload = data ? ' ' + JSON.stringify(data) : '';
+    const line = `[${new Date().toISOString()}] [${level}] ${message}${payload}\n`;
     fs.appendFileSync(this.file, line);
+  }
+  writeError(message, error, data) {
+    const merged = Object.assign({}, data || {}, { error: error?.message, stack: error?.stack });
+    this.write(message, merged, 'error');
+  }
+  writeStart(tag, data) {
+    this.write(`${tag}_start`, data, 'info');
+  }
+  writeEnd(tag, data) {
+    this.write(`${tag}_end`, data, 'info');
   }
 }
 

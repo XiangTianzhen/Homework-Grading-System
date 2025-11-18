@@ -43,7 +43,8 @@ app.get('/', (req, res) => {
 // 文件上传接口
 app.post('/upload', upload.single('paper'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: '请上传试卷图片' });
-  logger.write('upload_success', { file: req.file.filename });
+  logger.writeStart('upload', { originalname: req.file.originalname, size: req.file.size, mimetype: req.file.mimetype });
+  logger.writeEnd('upload', { file: req.file.filename, path: req.file.path });
   res.json({ message: '试卷上传成功', filename: req.file.filename, path: req.file.path });
 });
 
@@ -60,12 +61,14 @@ app.post('/ocr', async (req, res) => {
       return res.status(404).json({ error: '文件不存在' });
     }
 
+    const t0 = Date.now();
+    logger.writeStart('doc_analysis', { filename, options });
     const result = await baiduOCR.analyzePaperAnswers(imagePath, [], options || {});
     if (result.success) {
-      logger.write('ocr_success', { answersCount: (result.answers || []).length });
+      logger.writeEnd('doc_analysis', { answersCount: (result.answers || []).length, duration_ms: Date.now() - t0 });
       res.json({ message: 'OCR识别成功', answers: result.answers, fullText: result.fullText, words: result.words, rawResponse: result.rawResponse });
     } else {
-      logger.write('ocr_failed', { error: result.error });
+      logger.writeError('doc_analysis_failed', new Error(result.error), { filename, duration_ms: Date.now() - t0 });
       if ((result.error || '').includes('未识别到文字')) {
         res.json({ message: '未识别到文字', answers: [], fullText: '', words: [] });
       } else {
@@ -73,7 +76,7 @@ app.post('/ocr', async (req, res) => {
       }
     }
   } catch (error) {
-    logger.write('ocr_exception', { error: error.message });
+    logger.writeError('doc_analysis_exception', error, { route: '/ocr' });
     res.status(500).json({ error: 'OCR识别失败: ' + error.message });
   }
 });
@@ -111,16 +114,17 @@ app.post('/ocr/areas', async (req, res) => {
       return res.status(404).json({ error: '文件不存在' });
     }
 
+    const t0 = Date.now();
+    logger.writeStart('area_ocr', { filename, areasCount: areas.length });
     const results = [];
     for (const area of areas) {
       const result = await baiduOCR.analyzeArea(imagePath, area, options || {});
       results.push(result);
     }
-    
-    logger.write('area_ocr_success', { areasCount: areas.length });
+    logger.writeEnd('area_ocr', { areasCount: areas.length, duration_ms: Date.now() - t0 });
     res.json({ message: '区域OCR识别成功', results });
   } catch (error) {
-    logger.write('area_ocr_failed', { error: error.message });
+    logger.writeError('area_ocr_failed', error, { route: '/ocr/areas' });
     res.status(500).json({ error: '区域OCR识别失败: ' + error.message });
   }
 });
@@ -133,16 +137,18 @@ app.post('/paper-cut', async (req, res) => {
     const imagePath = path.join(__dirname, 'uploads', filename);
     if (!fs.existsSync(imagePath)) return res.status(404).json({ error: '文件不存在' });
 
+    const t0 = Date.now();
+    logger.writeStart('paper_cut_edu', { filename, options });
     const result = await baiduOCR.paperCutEdu(imagePath, options || {});
     if (result.success) {
-      logger.write('paper_cut_success', { questions: result.questions.length });
+      logger.writeEnd('paper_cut_edu', { questions: result.questions.length, duration_ms: Date.now() - t0 });
       res.json({ message: '试卷切题识别成功', questions: result.questions, rawResponse: result.rawResponse });
     } else {
-      logger.write('paper_cut_failed', { error: result.error });
+      logger.writeError('paper_cut_edu_failed', new Error(result.error), { filename });
       res.status(500).json({ error: result.error });
     }
   } catch (error) {
-    logger.write('paper_cut_exception', { error: error.message });
+    logger.writeError('paper_cut_edu_exception', error, { route: '/paper-cut' });
     res.status(500).json({ error: '试卷切题识别失败: ' + error.message });
   }
 });
@@ -155,16 +161,18 @@ app.post('/ocr/handwriting/areas', async (req, res) => {
     const imagePath = path.join(__dirname, 'uploads', filename);
     if (!fs.existsSync(imagePath)) return res.status(404).json({ error: '文件不存在' });
 
+    const t0 = Date.now();
+    logger.writeStart('handwriting_areas', { filename, areasCount: areas.length });
     const result = await baiduOCR.handwritingAreas(imagePath, areas, options || {});
     if (result.success) {
-      logger.write('handwriting_areas_success', { areasCount: areas.length });
+      logger.writeEnd('handwriting_areas', { areasCount: areas.length, duration_ms: Date.now() - t0 });
       res.json({ message: '手写区域识别成功', results: result.results, rawResponse: result.rawResponse });
     } else {
-      logger.write('handwriting_areas_failed', { error: result.error });
+      logger.writeError('handwriting_areas_failed', new Error(result.error), { filename });
       res.status(500).json({ error: result.error });
     }
   } catch (error) {
-    logger.write('handwriting_areas_exception', { error: error.message });
+    logger.writeError('handwriting_areas_exception', error, { route: '/ocr/handwriting/areas' });
     res.status(500).json({ error: '手写区域识别失败: ' + error.message });
   }
 });
@@ -177,16 +185,18 @@ app.post('/ocr/accurate/areas', async (req, res) => {
     const imagePath = path.join(__dirname, 'uploads', filename);
     if (!fs.existsSync(imagePath)) return res.status(404).json({ error: '文件不存在' });
 
+    const t0 = Date.now();
+    logger.writeStart('accurate_areas', { filename, areasCount: areas.length });
     const result = await baiduOCR.accurateBasicAreas(imagePath, areas, options || {});
     if (result.success) {
-      logger.write('accurate_areas_success', { areasCount: areas.length });
+      logger.writeEnd('accurate_areas', { areasCount: areas.length, duration_ms: Date.now() - t0 });
       res.json({ message: '高精度区域识别成功', results: result.results, rawResponse: result.rawResponse });
     } else {
-      logger.write('accurate_areas_failed', { error: result.error });
+      logger.writeError('accurate_areas_failed', new Error(result.error), { filename });
       res.status(500).json({ error: result.error });
     }
   } catch (error) {
-    logger.write('accurate_areas_exception', { error: error.message });
+    logger.writeError('accurate_areas_exception', error, { route: '/ocr/accurate/areas' });
     res.status(500).json({ error: '高精度区域识别失败: ' + error.message });
   }
 });
@@ -196,14 +206,19 @@ app.post('/ocr/doc/images', async (req, res) => {
   try {
     const { images, options } = req.body;
     if (!Array.isArray(images) || images.length === 0) return res.status(400).json({ error: '请提供图片数组' });
+    const t0 = Date.now();
+    logger.writeStart('doc_images', { parts: images.length });
     const result = await baiduOCR.docImages(images, options || {});
     if (result.success) {
       const fullText = (result.results || []).map(r => (r.text || '')).join('\n');
+      logger.writeEnd('doc_images', { parts: images.length, duration_ms: Date.now() - t0 });
       res.json({ message: 'doc_analysis 拼接识别成功', fullText, parts: result.results });
     } else {
+      logger.writeError('doc_images_failed', new Error(result.error), { parts: images.length });
       res.status(500).json({ error: result.error });
     }
   } catch (error) {
+    logger.writeError('doc_images_exception', error, { route: '/ocr/doc/images' });
     res.status(500).json({ error: 'doc_analysis 图片识别失败: ' + error.message });
   }
 });
@@ -215,7 +230,10 @@ app.post('/ocr/handwriting', async (req, res) => {
     if (!filename) return res.status(400).json({ error: '请提供文件名' });
     const imagePath = path.join(__dirname, 'uploads', filename);
     if (!fs.existsSync(imagePath)) return res.status(404).json({ error: '文件不存在' });
+    const t0 = Date.now();
+    logger.writeStart('handwriting', { filename });
     const result = await baiduOCR.handwritingOnly({ path: imagePath }, options || {});
+    logger.writeEnd('handwriting', { duration_ms: Date.now() - t0 });
     res.json(result.success ? { message: '手写整图识别成功', text: result.text, words: result.words } : { error: result.error });
   } catch (error) { res.status(500).json({ error: '手写整图识别失败: ' + error.message }) }
 });
@@ -226,7 +244,10 @@ app.post('/ocr/accurate', async (req, res) => {
     if (!filename) return res.status(400).json({ error: '请提供文件名' });
     const imagePath = path.join(__dirname, 'uploads', filename);
     if (!fs.existsSync(imagePath)) return res.status(404).json({ error: '文件不存在' });
+    const t0 = Date.now();
+    logger.writeStart('accurate_basic', { filename });
     const result = await baiduOCR.accurateBasicOnly({ path: imagePath }, options || {});
+    logger.writeEnd('accurate_basic', { duration_ms: Date.now() - t0 });
     res.json(result.success ? { message: '高精度整图识别成功', text: result.text, words: result.words } : { error: result.error });
   } catch (error) { res.status(500).json({ error: '高精度整图识别失败: ' + error.message }) }
 });
@@ -237,7 +258,10 @@ app.post('/ocr/general', async (req, res) => {
     if (!filename) return res.status(400).json({ error: '请提供文件名' });
     const imagePath = path.join(__dirname, 'uploads', filename);
     if (!fs.existsSync(imagePath)) return res.status(404).json({ error: '文件不存在' });
+    const t0 = Date.now();
+    logger.writeStart('general_basic', { filename });
     const result = await baiduOCR.generalBasicOnly({ path: imagePath }, options || {});
+    logger.writeEnd('general_basic', { duration_ms: Date.now() - t0 });
     res.json(result.success ? { message: '通用整图识别成功', text: result.text, words: result.words } : { error: result.error });
   } catch (error) { res.status(500).json({ error: '通用整图识别失败: ' + error.message }) }
 });
