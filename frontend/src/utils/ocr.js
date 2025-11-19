@@ -252,16 +252,17 @@ export async function handwritingRecognize({ filename, areas = [], maskAreas = [
   if (areas.length) {
     const res = await handwritingAreas(filename, areasMinusMasks(areas, maskAreas), options)
     const results = res.data?.results || []
-    const texts = results.map(r => {
-      const filtered = filterWordsByMasks(r.words || [], maskAreas)
-      return buildTextFromWords(filtered) || (r.text || '')
-    })
-    return { text: texts.join('\n'), extracted: texts.map(t => (t || '').trim()) }
+    const allWords = results.flatMap(r => r.words || [])
+    const words = filterWordsByMasks(allWords, maskAreas)
+    const text = buildTextFromWords(words) || results.map(r => (r.text || '')).join('')
+    const extracted = extractAnswers(words, maskAreas, [], text)
+    return { text, words, extracted }
   } else {
     const res = await handwritingWhole(filename, options)
     const words = filterWordsByMasks(res.data?.words || [], maskAreas)
     const text = buildTextFromWords(words) || (res.data?.text || '')
-    return { text, words, extracted: [text.trim()] }
+    const extracted = extractAnswers(words, maskAreas, [], text)
+    return { text, words, extracted }
   }
 }
 
@@ -270,16 +271,17 @@ export async function accurateRecognize({ filename, imageSrc, areas = [], maskAr
   if (areas.length) {
     const res = await accurateAreas(filename, areasMinusMasks(areas, maskAreas), options)
     const results = res.data?.results || []
-    let texts = results.map(r => {
-      const filtered = filterWordsByMasks(r.words || [], maskAreas)
-      return buildTextFromWords(filtered) || (r.text || '')
-    })
+    const allWords = results.flatMap(r => r.words || [])
+    const words = filterWordsByMasks(allWords, maskAreas)
+    let texts = results.map(r => buildTextFromWords(filterWordsByMasks(r.words || [], maskAreas)) || (r.text || ''))
     if (!texts.some(t => (t || '').trim().length)) {
       const images = (await cropAreasToBase64(imageSrc, areasMinusMasks(areas, maskAreas))).map(u => (u || '').split(',')[1])
       const byImg = await accurateByImages(images, options)
       texts = (byImg.data?.results || []).map(r => (r.text || '').trim())
     }
-    return { text: texts.join('\n'), extracted: texts.map(t => (t || '').trim()) }
+    const text = texts.join('\n')
+    const extracted = extractAnswers(words || [], maskAreas, [], text)
+    return { text, extracted }
   } else {
     const res = await accurateWhole(filename, options)
     const words = filterWordsByMasks(res.data?.words || [], maskAreas)
@@ -291,7 +293,8 @@ export async function accurateRecognize({ filename, imageSrc, areas = [], maskAr
       const texts = (ar.data?.results || []).map(r => buildTextFromWords(r.words || []) || (r.text || '')).filter(Boolean)
       text = texts.join('') || text
     }
-    return { text, extracted: [text.trim()] }
+    const extracted = extractAnswers(words, maskAreas, [], text)
+    return { text, extracted }
   }
 }
 
@@ -300,16 +303,17 @@ export async function generalRecognize({ filename, imageSrc, areas = [], maskAre
   if (areas.length) {
     const res = await generalAreas(filename, areasMinusMasks(areas, maskAreas), options)
     const results = res.data?.results || []
-    let texts = results.map(r => {
-      const filtered = filterWordsByMasks(r.words || [], maskAreas)
-      return buildTextFromWords(filtered) || (r.text || '')
-    })
+    const allWords = results.flatMap(r => r.words || [])
+    const words = filterWordsByMasks(allWords, maskAreas)
+    let texts = results.map(r => buildTextFromWords(filterWordsByMasks(r.words || [], maskAreas)) || (r.text || ''))
     if (!texts.some(t => (t || '').trim().length)) {
       const images = (await cropAreasToBase64(imageSrc, areasMinusMasks(areas, maskAreas))).map(u => (u || '').split(',')[1])
       const byImg = await generalByImages(images, options)
       texts = (byImg.data?.results || []).map(r => (r.text || '').trim())
     }
-    return { text: texts.join('\n'), extracted: texts.map(t => (t || '').trim()) }
+    const text = texts.join('\n')
+    const extracted = extractAnswers(words || [], maskAreas, [], text)
+    return { text, extracted }
   } else {
     const res = await generalWhole(filename, options)
     const words = filterWordsByMasks(res.data?.words || [], maskAreas)
@@ -321,7 +325,8 @@ export async function generalRecognize({ filename, imageSrc, areas = [], maskAre
       const texts = (ar.data?.results || []).map(r => buildTextFromWords(r.words || []) || (r.text || '')).filter(Boolean)
       text = texts.join('') || text
     }
-    return { text, extracted: [text.trim()] }
+    const extracted = extractAnswers(words, maskAreas, [], text)
+    return { text, extracted }
   }
 }
 
