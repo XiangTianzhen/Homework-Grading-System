@@ -21,12 +21,7 @@
         v-for="(area, index) in areas" 
         :key="index"
         class="selected-area"
-        :style="{
-          left: area.x + 'px',
-          top: area.y + 'px',
-          width: area.width + 'px',
-          height: area.height + 'px'
-        }"
+        :style="areaStyle(area)"
       >
         <span class="area-label">{{ index + 1 }}</span>
         <button 
@@ -40,12 +35,7 @@
       <div 
         v-if="isSelecting && currentArea"
         class="selecting-area"
-        :style="{
-          left: currentArea.x + 'px',
-          top: currentArea.y + 'px',
-          width: currentArea.width + 'px',
-          height: currentArea.height + 'px'
-        }"
+        :style="currentAreaStyle()"
       ></div>
     </div>
     
@@ -61,7 +51,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, nextTick } from 'vue'
+import { ref, reactive, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
   imageSrc: String,
@@ -76,9 +66,8 @@ const isSelecting = ref(false)
 const currentArea = ref(null)
 const imageContainer = ref(null)
 const imageElement = ref(null)
-
-// 图片缩放比例
-const scale = ref(1)
+const scaleX = ref(1)
+const scaleY = ref(1)
 
 watch(areas, () => {
   emit('update:modelValue', areas.value)
@@ -91,14 +80,35 @@ watch(() => props.modelValue, (newVal) => {
 // 获取鼠标在图片上的相对坐标
 function getMousePosition(e) {
   const rect = imageElement.value.getBoundingClientRect()
-  const x = (e.clientX - rect.left) / scale.value
-  const y = (e.clientY - rect.top) / scale.value
+  const x = (e.clientX - rect.left) / (scaleX.value || 1)
+  const y = (e.clientY - rect.top) / (scaleY.value || 1)
   return { x, y }
+}
+
+function areaStyle(a) {
+  return {
+    left: (a.x * scaleX.value) + 'px',
+    top: (a.y * scaleY.value) + 'px',
+    width: (a.width * scaleX.value) + 'px',
+    height: (a.height * scaleY.value) + 'px'
+  }
+}
+
+function currentAreaStyle() {
+  const a = currentArea.value
+  if (!a) return {}
+  return {
+    left: (a.x * scaleX.value) + 'px',
+    top: (a.y * scaleY.value) + 'px',
+    width: (a.width * scaleX.value) + 'px',
+    height: (a.height * scaleY.value) + 'px'
+  }
 }
 
 function startSelection(e) {
   if (e.target !== imageElement.value) return
   
+  calculateScale()
   isSelecting.value = true
   const pos = getMousePosition(e)
   currentArea.value = {
@@ -160,17 +170,24 @@ function saveAreas() {
 // 计算图片缩放比例
 function calculateScale() {
   nextTick(() => {
-    if (imageElement.value && imageContainer.value) {
-      const imgWidth = imageElement.value.naturalWidth
-      const containerWidth = imageContainer.value.clientWidth
-      scale.value = containerWidth / imgWidth
+    if (imageElement.value) {
+      const rect = imageElement.value.getBoundingClientRect()
+      const imgW = imageElement.value.naturalWidth || 1
+      const imgH = imageElement.value.naturalHeight || 1
+      scaleX.value = (rect.width || 0) / imgW || 1
+      scaleY.value = (rect.height || 0) / imgH || 1
     }
   })
 }
 
 watch(() => props.imageSrc, () => {
   if (props.imageSrc) {
-    calculateScale()
+    nextTick(() => {
+      if (imageElement.value) {
+        imageElement.value.onload = calculateScale
+      }
+      calculateScale()
+    })
   }
 })
 
@@ -178,6 +195,21 @@ watch(() => props.imageSrc, () => {
 if (typeof window !== 'undefined') {
   window.addEventListener('resize', calculateScale)
 }
+
+let ro
+onMounted(() => {
+  nextTick(() => {
+    if (typeof ResizeObserver !== 'undefined' && imageElement.value) {
+      ro = new ResizeObserver(() => calculateScale())
+      ro.observe(imageElement.value)
+    }
+  })
+})
+
+onBeforeUnmount(() => {
+  if (ro) ro.disconnect()
+  if (typeof window !== 'undefined') window.removeEventListener('resize', calculateScale)
+})
 </script>
 
 <style scoped lang="scss">
