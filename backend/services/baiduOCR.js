@@ -15,6 +15,12 @@ class BaiduOCRService {
   }
 
   // 工具：从 source 获取 base64（支持 { path } 或 { base64 } 或 直接字符串）
+  /**
+   * 从输入源解析图片为 base64 字符串
+   * 支持三种形式：字符串路径或 dataURI、{ base64 }, 或 { path }
+   * @param {string|{base64:string}|{path:string}} source 图片源
+   * @returns {string} base64（不含 data:image/...;base64, 前缀）
+   */
   getImageBase64(source) {
     if (!source) throw new Error('缺少图片源');
     if (typeof source === 'string') {
@@ -39,6 +45,11 @@ class BaiduOCRService {
   }
 
   // 获取访问令牌
+  /**
+   * 获取百度 OCR 访问令牌
+   * - 本地缓存令牌，并采用“提前 5 分钟过期”策略
+   * @returns {Promise<string>} access_token
+   */
   async getAccessToken() {
     if (!BAIDU_OCR_CONFIG.apiKey || !BAIDU_OCR_CONFIG.secretKey) {
       throw new Error('缺少环境变量 BAIDU_OCR_API_KEY 或 BAIDU_OCR_SECRET_KEY');
@@ -69,6 +80,14 @@ class BaiduOCRService {
   }
 
   // 试卷分析与识别（doc_analysis）
+  /**
+   * 试卷分析与识别（doc_analysis）
+   * - 返回行级文本与位置（location 或由 disp_line_poly 推断）
+   * - 当整图未识别到文本时，回退到 accurate_basic → general_basic，提高可用性
+   * @param {string|{path:string}|{base64:string}} imagePathOrBase64 输入图片源
+   * @param {object} options doc_analysis 参数（language_type、result_type 等）
+   * @returns {Promise<{success:boolean,text?:string,words?:Array,rawResponse?:any,error?:string}>}
+   */
   async docAnalysis(imagePathOrBase64, options = {}) {
     try {
       const accessToken = await this.getAccessToken();
@@ -185,6 +204,12 @@ class BaiduOCRService {
   }
 
   // 试卷切题识别（paper_cut_edu）
+  /**
+   * 试卷切题识别（paper_cut_edu）
+   * - 提取题目类型、题干、答案、选项与题框位置
+   * - 支持 elem_text 聚合与逐元素拼接两种路径
+   * @returns {Promise<{success:boolean,questions?:Array,rawResponse?:any,error?:string}>}
+   */
   async paperCutEdu(imagePathOrBase64, options = {}) {
     try {
       const accessToken = await this.getAccessToken();
@@ -258,6 +283,11 @@ class BaiduOCRService {
     }
   }
 
+  /**
+   * 分片图片数组的试卷切题识别
+   * @param {string[]} imagesBase64 base64 数组（不含前缀）
+   * @returns {Promise<{success:boolean,results:Array}>}
+   */
   async paperCutEduImages(imagesBase64, options = {}) {
     try {
       const results = []
@@ -272,6 +302,10 @@ class BaiduOCRService {
   }
 
   // 手写文字识别（handwriting）
+  /**
+   * 手写文字识别（整图）
+   * @returns {Promise<{success:boolean,text?:string,words?:Array,rawResponse?:any,error?:string}>}
+   */
   async handwritingOnly(imagePathOrBase64, options = {}) {
     try {
       const accessToken = await this.getAccessToken();
@@ -351,6 +385,10 @@ class BaiduOCRService {
   }
 
   // 通用文字识别（高精度版） accurate_basic
+  /**
+   * 通用文字识别（高精度版 accurate_basic）整图识别
+   * @returns {Promise<{success:boolean,text?:string,words?:Array,rawResponse?:any,error?:string}>}
+   */
   async accurateBasicOnly(imagePathOrBase64, options = {}) {
     try {
       const accessToken = await this.getAccessToken();
@@ -392,6 +430,9 @@ class BaiduOCRService {
     }
   }
 
+  /**
+   * 高精度版的区域识别：在整图识别结果上按原图坐标过滤词
+   */
   async accurateBasicAreas(imagePath, areas, options = {}) {
     try {
       const ocrResult = await this.accurateBasicOnly(imagePath, options);
@@ -408,6 +449,9 @@ class BaiduOCRService {
     }
   }
 
+  /**
+   * 高精度版分片图片识别
+   */
   async accurateBasicImages(imagesBase64, options = {}) {
     try {
       const results = []
@@ -422,6 +466,9 @@ class BaiduOCRService {
   }
 
   // 通用文字识别（标准版） general_basic
+  /**
+   * 通用文字识别（标准版 general_basic）整图识别
+   */
   async generalBasicOnly(imagePathOrBase64, options = {}) {
     try {
       const accessToken = await this.getAccessToken();
@@ -463,6 +510,9 @@ class BaiduOCRService {
     }
   }
 
+  /**
+   * 标准版的区域识别：在整图识别结果上按原图坐标过滤词
+   */
   async generalBasicAreas(imagePath, areas, options = {}) {
     try {
       const ocrResult = await this.generalBasicOnly(imagePath, options);
@@ -536,6 +586,10 @@ class BaiduOCRService {
   }
 
   // 判断文字是否在指定区域内
+  /**
+   * 判断文字是否在指定区域内
+   * - 中心点命中或矩形相交都视为命中，用于提高区域过滤的鲁棒性
+   */
   isWordInArea(word, area) {
     const pos = word.position || {};
     const wl = pos.left || 0;
@@ -556,6 +610,9 @@ class BaiduOCRService {
   }
 
   // 分析指定区域
+  /**
+   * 区域分析：在 doc_analysis 整图识别基础上按原图坐标提取区域文本
+   */
   async analyzeArea(imagePath, area, options = {}) {
     try {
       const ocrResult = await this.docAnalysis({ path: imagePath }, options);
