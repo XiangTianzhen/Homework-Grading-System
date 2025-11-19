@@ -1,42 +1,45 @@
 <script setup>
 import { ref, watch } from 'vue'
-import { QuestionFilled } from '@element-plus/icons-vue'
 import AreaSelector from '../components/AreaSelector.vue'
-import { uploadPaper as uploadPaperAPI, recognizeOCR, recognizeOCRWithAreas, paperCutEdu, paperCutByImages, handwritingAreas, accurateAreas, generalAreas, handwritingByImages, accurateByImages, generalByImages, docByImages, handwritingWhole, accurateWhole, generalWhole } from '../api'
+import OCRSettings from '../components/OCRSettings.vue'
+import { areasMinusMasks, docRecognize, paperRecognize, handwritingRecognize, accurateRecognize, generalRecognize, normalizeText, useOcrState } from '../utils/ocr'
+import { uploadPaper as uploadPaperAPI } from '../api'
 
-const fileInput = ref(null)
-const selectedFile = ref(null)
-const imagePreview = ref(null)
-const uploaded = ref(null)
-const ocrRes = ref(null)
-const showAreaSelector = ref(false)
-const areas = ref([])
-const showMaskSelector = ref(false)
-const maskAreas = ref([])
-const maskWords = ref([])
-const newMaskWord = ref('')
-const extracted = ref([])
-const loading = ref(false)
-const msg = ref('')
-const err = ref('')
-const showUploadRes = ref(false)
-const showOcrRes = ref(false)
-const showImages = ref(false)
-const apiChoice = ref('doc')
-const showSettings = ref(false)
-const docOptions = ref({ language_type: 'CHN_ENG', result_type: 'big', detect_direction: true, line_probability: true, disp_line_poly: true, words_type: 'handprint_mix', layout_analysis: true, recg_formula: true, recg_long_division: true, disp_underline_analysis: true, recg_alter: false })
-const paperOptions = ref({ language_type: 'CHN_ENG', detect_direction: false, words_type: 'handprint_mix', splice_text: true, enhance: true })
-const handwritingOptions = ref({ language_type: 'CHN_ENG', recognize_granularity: 'big', probability: false, detect_direction: false, detect_alteration: false })
-const accurateOptions = ref({ language_type: 'CHN_ENG', detect_direction: false, paragraph: false, probability: false, multidirectional_recognize: false })
-const generalOptions = ref({ language_type: 'CHN_ENG', detect_direction: false, detect_language: false, paragraph: false, probability: false })
-const paperRes = ref(null)
-const handRes = ref(null)
-const accurateRes = ref(null)
-const generalRes = ref(null)
-const showAreaRes = ref(false)
-const imageSize = ref({ width: 0, height: 0 })
-const croppedPreviews = ref([])
-const maskPreview = ref(null)
+const {
+  fileInput,
+  selectedFile,
+  imagePreview,
+  uploaded,
+  ocrRes,
+  areas,
+  showAreaSelector,
+  showMaskSelector,
+  maskAreas,
+  maskWords,
+  newMaskWord,
+  extracted,
+  loading,
+  msg,
+  err,
+  showUploadRes,
+  showOcrRes,
+  showImages,
+  apiChoice,
+  showSettings,
+  docOptions,
+  paperOptions,
+  handwritingOptions,
+  accurateOptions,
+  generalOptions,
+  paperRes,
+  handRes,
+  accurateRes,
+  generalRes,
+  
+  imageSize,
+  croppedPreviews,
+  maskPreview
+} = useOcrState({ showImagesDefault: false })
 
 function chooseFile() { fileInput.value && fileInput.value.click() }
 
@@ -66,15 +69,7 @@ async function upload() {
   } finally { loading.value = false }
 }
 
-async function runOCR() {
-  if (!uploaded.value) return
-  loading.value = true; msg.value = '整图OCR中...'; err.value = ''
-  try {
-    const res = await recognizeOCR(uploaded.value.filename)
-    ocrRes.value = res.data
-    msg.value = '整图OCR完成'
-  } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
-}
+ 
 
 function onAreasSelected(list) { areas.value = list; showAreaSelector.value = false }
 
@@ -82,156 +77,57 @@ function onAreasSelected(list) { areas.value = list; showAreaSelector.value = fa
 
 function pretty(v) { return v ? JSON.stringify(v, null, 2) : '' }
 
-function normalizeLatexFraction(s) {
-  return s.replace(/\\frac\s*\{\s*(\d+)\s*\}\s*\{\s*(\d+)\s*\}/g, (_, a, b) => `${a}/${b}`)
-}
-function normalize(s) {
-  return normalizeLatexFraction(s).replace(/\s+/g, '').replace(/[，。、．]/g, '').replace(/[（]/g, '(').replace(/[）]/g, ')').replace(/[〈⟨]/g, '(').replace(/[〉⟩]/g, ')').replace(/：/g, ':')
-}
-function extractAnswers() {
-  // 从整图 OCR 的 words 过滤屏蔽区域和屏蔽词重新拼接文本再提取括号
-  const words = (ocrRes.value?.words || [])
-    .filter(w => !isInAnyMask(w.position))
-    .map(w => w.text || '')
-  const src = words.join('') || (ocrRes.value?.fullText || '')
-  const t = normalize(src)
-  const r = []
-  const re = /\(([^()]{1,64})\)/g
-  let m
-  while ((m = re.exec(t)) !== null) {
-    r.push(m[1])
-  }
-  const filtered = r.filter(ans => !maskWords.value.some(w => w && ans.includes(w)))
-  extracted.value = filtered
-}
+ 
 
 function onMaskSelected(list) { maskAreas.value = list; showMaskSelector.value = false }
-function addMaskWord() { const v = normalize(newMaskWord.value || ''); if (!v) return; if (!maskWords.value.includes(v)) maskWords.value.push(v); newMaskWord.value = '' }
+function addMaskWord() { const v = normalizeText(newMaskWord.value || ''); if (!v) return; if (!maskWords.value.includes(v)) maskWords.value.push(v); newMaskWord.value = '' }
 function removeMaskWord(i) { maskWords.value.splice(i,1) }
 function clearMasks() { maskAreas.value = []; maskWords.value = []; maskPreview.value = null }
-function isInAnyMask(pos) {
-  if (!pos) return false
-  const cx = pos.left + (pos.width || 0)/2
-  const cy = pos.top + (pos.height || 0)/2
-  return maskAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
-}
  
 
 async function runUnifiedOCR() {
   if (!uploaded.value) return
     if (apiChoice.value === 'paper') {
       loading.value = true; msg.value = '试卷切题识别中...'; err.value = ''
-      try {
-        const res = await paperCutEdu(uploaded.value.filename, paperOptions.value)
-        const qs = (res.data?.questions || [])
-        const inArea = areas.value.length
-          ? qs.filter(q => {
-              const b = q.bbox; if (!b) return false
-              const cx = b.left + (b.width || 0)/2
-              const cy = b.top + (b.height || 0)/2
-              return areas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
-            })
-          : qs
-        const filtered = inArea.filter(q => {
-          const b = q.bbox; if (!b) return true
-          const cx = b.left + (b.width || 0)/2
-          const cy = b.top + (b.height || 0)/2
-          return !maskAreas.value.some(a => cx>=a.x && cx<=a.x+a.width && cy>=a.y && cy<=a.y+a.height)
-        })
-        paperRes.value = { questions: filtered }
-        const arr = filtered.map(q => (q.answer || '').trim()).filter(Boolean)
-        extracted.value = arr.length ? arr : filtered.map(q => (q.stem || '').match(/\(([^()]{1,64})\)/)?.[1] || '').filter(Boolean)
-        msg.value = areas.value.length ? '试卷切题识别完成（选区）' : '试卷切题识别完成'
+    try {
+      const r = await paperRecognize({ filename: uploaded.value.filename, imageSrc: imagePreview.value, areas: areas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, options: paperOptions.value })
+      paperRes.value = { questions: r.questions }
+      extracted.value = r.extracted
+      msg.value = areas.value.length ? '试卷切题识别完成（区域）' : '试卷切题识别完成'
       } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
       renderCrops()
   } else {
     if (apiChoice.value === 'handwriting') {
       loading.value = true; err.value = ''
       try {
-        if (areas.value.length) {
-          const res = await handwritingAreas(uploaded.value.filename, areas.value, handwritingOptions.value)
-          const results = res.data?.results || []
-          const texts = results.map(r => {
-            const filtered = (r.words || []).filter(w => !isInAnyMask(w.position))
-            return filtered.map(w => w.text || '').join('') || (r.text || '')
-          })
-          handRes.value = { text: texts.join('\n') }
-          extracted.value = texts.map(t => (t || '').trim())
-          msg.value = '手写区域识别完成'
-        } else {
-          const res = await handwritingWhole(uploaded.value.filename, handwritingOptions.value)
-          const words = (res.data?.words || [])
-          const filtered = words.filter(w => !isInAnyMask(w.position))
-          const text = filtered.map(w => w.text || '').join('') || (res.data?.text || '')
-          handRes.value = { ...res.data, words: filtered, text }
-          extracted.value = [text.trim()]
-          msg.value = '手写整图识别完成'
-        }
+        const r = await handwritingRecognize({ filename: uploaded.value.filename, areas: areas.value, maskAreas: maskAreas.value, options: handwritingOptions.value })
+        handRes.value = { text: r.text, words: r.words || [] }
+        extracted.value = r.extracted
+        msg.value = areas.value.length ? '手写区域识别完成' : '手写整图识别完成'
       } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
     } else if (apiChoice.value === 'accurate') {
       loading.value = true; err.value = ''
       try {
-        if (areas.value.length) {
-          const res = await accurateAreas(uploaded.value.filename, areas.value, accurateOptions.value)
-          const results = res.data?.results || []
-          const texts = results.map(r => {
-            const filtered = (r.words || []).filter(w => !isInAnyMask(w.position))
-            return filtered.map(w => w.text || '').join('') || (r.text || '')
-          })
-          accurateRes.value = { text: texts.join('\n') }
-          extracted.value = texts.map(t => (t || '').trim())
-          msg.value = '高精度区域识别完成'
-        } else {
-          const res = await accurateWhole(uploaded.value.filename, accurateOptions.value)
-          const words = (res.data?.words || [])
-          const filtered = words.filter(w => !isInAnyMask(w.position))
-          const text = filtered.map(w => w.text || '').join('') || (res.data?.text || '')
-          accurateRes.value = { ...res.data, words: filtered, text }
-          extracted.value = [text.trim()]
-          msg.value = '高精度整图识别完成'
-        }
+        const r = await accurateRecognize({ filename: uploaded.value.filename, imageSrc: imagePreview.value, areas: areas.value, maskAreas: maskAreas.value, imageSize: imageSize.value, options: accurateOptions.value })
+        accurateRes.value = { text: r.text }
+        extracted.value = r.extracted
+        msg.value = areas.value.length ? '高精度区域识别完成' : '高精度整图识别完成'
       } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
     } else if (apiChoice.value === 'general') {
       loading.value = true; err.value = ''
       try {
-        if (areas.value.length) {
-          const res = await generalAreas(uploaded.value.filename, areas.value, generalOptions.value)
-          const results = res.data?.results || []
-          const texts = results.map(r => {
-            const filtered = (r.words || []).filter(w => !isInAnyMask(w.position))
-            return filtered.map(w => w.text || '').join('') || (r.text || '')
-          })
-          generalRes.value = { text: texts.join('\n') }
-          extracted.value = texts.map(t => (t || '').trim())
-          msg.value = '通用区域识别完成'
-        } else {
-          const res = await generalWhole(uploaded.value.filename, generalOptions.value)
-          const words = (res.data?.words || [])
-          const filtered = words.filter(w => !isInAnyMask(w.position))
-          const text = filtered.map(w => w.text || '').join('') || (res.data?.text || '')
-          generalRes.value = { ...res.data, words: filtered, text }
-          extracted.value = [text.trim()]
-          msg.value = '通用整图识别完成'
-        }
+        const r = await generalRecognize({ filename: uploaded.value.filename, imageSrc: imagePreview.value, areas: areas.value, maskAreas: maskAreas.value, imageSize: imageSize.value, options: generalOptions.value })
+        generalRes.value = { text: r.text }
+        extracted.value = r.extracted
+        msg.value = areas.value.length ? '通用区域识别完成' : '通用整图识别完成'
       } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
     } else {
       loading.value = true; msg.value = areas.value.length ? 'doc分析（分片）中...' : 'doc分析中...'; err.value = ''
       try {
-        if (areas.value.length) {
-          const res = await recognizeOCRWithAreas(uploaded.value.filename, areas.value, docOptions.value)
-          const results = res.data?.results || []
-          const allWords = results.flatMap(r => r.words || [])
-          const filteredWords = allWords.filter(w => !isInAnyMask(w.position))
-          const fullText = filteredWords.map(w => w.text || '').join('') || results.map(r => r.text || '').join('')
-          ocrRes.value = { fullText, words: filteredWords }
-          extractAnswers()
-          msg.value = 'doc分析（选区）完成'
-        } else {
-          const res = await recognizeOCR(uploaded.value.filename, docOptions.value)
-          ocrRes.value = res.data
-          extractAnswers()
-          msg.value = 'doc分析完成'
-        }
+        const r = await docRecognize({ filename: uploaded.value.filename, areas: areas.value, maskAreas: maskAreas.value, options: docOptions.value })
+        ocrRes.value = { fullText: r.fullText, words: r.words }
+        extracted.value = r.extracted
+        msg.value = areas.value.length ? 'doc分析（选区）完成' : 'doc分析完成'
       } catch (e) {
         err.value = e.response?.data?.error || e.message
       } finally {
@@ -247,11 +143,16 @@ function renderCrops() {
   const img = new Image(); img.src = imagePreview.value
   img.onload = () => {
     const out = []
-    for (const a of areas.value) {
+    const areasToCrop = areasMinusMasks(areas.value, maskAreas.value)
+    for (const a of areasToCrop) {
+      const sx = Math.max(0, Math.min(Math.round(a.x), img.naturalWidth))
+      const sy = Math.max(0, Math.min(Math.round(a.y), img.naturalHeight))
+      const sw = Math.max(1, Math.min(Math.round(a.width), img.naturalWidth - sx))
+      const sh = Math.max(1, Math.min(Math.round(a.height), img.naturalHeight - sy))
       const canvas = document.createElement('canvas')
-      canvas.width = a.width; canvas.height = a.height
+      canvas.width = sw; canvas.height = sh
       const ctx = canvas.getContext('2d')
-      ctx.drawImage(img, a.x, a.y, a.width, a.height, 0, 0, a.width, a.height)
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh)
       out.push(canvas.toDataURL('image/png'))
     }
     croppedPreviews.value = out
@@ -312,14 +213,14 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
       </div>
       <div class="preview-item">
         <h3>区域裁剪预览</h3>
-        <div class="crops" v-if="apiChoice!=='paper' && croppedPreviews.length">
+        <div class="crops" v-if="croppedPreviews.length">
           <el-image v-for="(u,i) in croppedPreviews" :key="i" class="img-fit" :src="u" fit="contain" />
         </div>
         <div v-else class="placeholder">未框选区域</div>
       </div>
       <div class="preview-item">
         <h3>屏蔽区域预览</h3>
-        <el-image v-if="apiChoice!=='paper' && maskPreview" class="img-fit" :src="maskPreview" fit="contain" />
+        <el-image v-if="maskPreview" class="img-fit" :src="maskPreview" fit="contain" />
         <div v-else class="placeholder">未设置屏蔽</div>
       </div>
     </div>
@@ -343,247 +244,7 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
 
     <div v-if="showSettings" class="modal" @click="showSettings = false">
       <div class="modal-body" @click.stop>
-        <div class="settings">
-          <h3>识别参数设置</h3>
-          <div v-if="apiChoice==='doc'">
-            <el-form label-width="160px">
-              <el-form-item>
-                <template #label>
-                  language_type
-                  <el-tooltip placement="top" content="识别语言类型：CHN_ENG（中英文，默认）/ ENG（英文）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-select v-model="docOptions.language_type" style="width:220px"><el-option label="CHN_ENG" value="CHN_ENG"/><el-option label="ENG" value="ENG"/></el-select>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  result_type
-                  <el-tooltip placement="top" content="返回级别：big（行级，默认）/ small（行+字级）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-select v-model="docOptions.result_type" style="width:220px"><el-option label="big" value="big"/><el-option label="small" value="small"/></el-select>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  detect_direction
-                  <el-tooltip placement="top" content="是否检测图像朝向：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="docOptions.detect_direction"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  line_probability
-                  <el-tooltip placement="top" content="是否返回每行识别置信度：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="docOptions.line_probability"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  disp_line_poly
-                  <el-tooltip placement="top" content="是否返回每行四角点坐标：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="docOptions.disp_line_poly"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  words_type
-                  <el-tooltip placement="top" content="文字类型：handwring_only（仅手写）/ handprint_mix（手写印刷混排，默认）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-select v-model="docOptions.words_type" style="width:220px"><el-option label="handwring_only" value="handwring_only"/><el-option label="handprint_mix" value="handprint_mix"/></el-select>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  layout_analysis
-                  <el-tooltip placement="top" content="版面分析输出 layout/attribute：默认false。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="docOptions.layout_analysis"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  recg_formula
-                  <el-tooltip placement="top" content="检测并识别公式（返回LaTeX）：默认false。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="docOptions.recg_formula"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  recg_long_division
-                  <el-tooltip placement="top" content="检测并识别手写竖式：默认false。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="docOptions.recg_long_division"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  disp_underline_analysis
-                  <el-tooltip placement="top" content="开启下划线识别并在 underline 字段返回：默认false。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="docOptions.disp_underline_analysis"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  recg_alter
-                  <el-tooltip placement="top" content="返回涂改识别结果，涂改部分统一用“☰”：默认false。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="docOptions.recg_alter"/>
-              </el-form-item>
-            </el-form>
-          </div>
-          <div v-else-if="apiChoice==='paper'">
-            <el-form label-width="160px">
-              <el-form-item>
-                <template #label>
-                  language_type
-                  <el-tooltip placement="top" content="识别语言类型：CHN_ENG（中英文，默认）/ ENG（英文）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-select v-model="paperOptions.language_type" style="width:220px"><el-option label="CHN_ENG" value="CHN_ENG"/><el-option label="ENG" value="ENG"/></el-select>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  detect_direction
-                  <el-tooltip placement="top" content="是否检测图像朝向：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="paperOptions.detect_direction"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  words_type
-                  <el-tooltip placement="top" content="文字类型：handwring_only（仅手写）/ handprint_mix（手写印刷混排，默认）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-select v-model="paperOptions.words_type" style="width:220px"><el-option label="handwring_only" value="handwring_only"/><el-option label="handprint_mix" value="handprint_mix"/></el-select>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  splice_text
-                  <el-tooltip placement="top" content="是否拼接题目元素每行文本到 elem_text：true/false。开启通常耗时增加约 1s。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="paperOptions.splice_text"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  enhance
-                  <el-tooltip placement="top" content="图像矫正与增强：true/false（默认true）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="paperOptions.enhance"/>
-              </el-form-item>
-            </el-form>
-          </div>
-          <div v-else-if="apiChoice==='handwriting'">
-            <el-form label-width="160px">
-              <el-form-item>
-                <template #label>
-                  language_type
-                  <el-tooltip placement="top" content="识别语言类型：CHN_ENG（中英文，默认）/ ENG 等。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-select v-model="handwritingOptions.language_type" style="width:220px"><el-option label="CHN_ENG" value="CHN_ENG"/><el-option label="ENG" value="ENG"/></el-select>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  recognize_granularity
-                  <el-tooltip placement="top" content="是否定位单字符：big（不定位，默认）/ small（定位单字符）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-select v-model="handwritingOptions.recognize_granularity" style="width:220px"><el-option label="big" value="big"/><el-option label="small" value="small"/></el-select>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  probability
-                  <el-tooltip placement="top" content="是否返回每行置信度：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="handwritingOptions.probability"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  detect_direction
-                  <el-tooltip placement="top" content="是否检测图像朝向：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="handwritingOptions.detect_direction"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  detect_alteration
-                  <el-tooltip placement="top" content="是否检测涂改痕迹（涂改部分用“☰”返回）：默认false。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="handwritingOptions.detect_alteration"/>
-              </el-form-item>
-            </el-form>
-          </div>
-          <div v-else-if="apiChoice==='accurate'">
-            <el-form label-width="160px">
-              <el-form-item>
-                <template #label>
-                  language_type
-                  <el-tooltip placement="top" content="识别语言类型：CHN_ENG（默认）/ ENG 等。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-select v-model="accurateOptions.language_type" style="width:220px"><el-option label="CHN_ENG" value="CHN_ENG"/><el-option label="ENG" value="ENG"/></el-select>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  detect_direction
-                  <el-tooltip placement="top" content="是否检测图像朝向：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="accurateOptions.detect_direction"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  paragraph
-                  <el-tooltip placement="top" content="是否输出段落信息：true/false。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="accurateOptions.paragraph"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  probability
-                  <el-tooltip placement="top" content="是否返回每行置信度：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="accurateOptions.probability"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  multidirectional_recognize
-                  <el-tooltip placement="top" content="行级多方向识别：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="accurateOptions.multidirectional_recognize"/>
-              </el-form-item>
-            </el-form>
-          </div>
-          <div v-else>
-            <el-form label-width="160px">
-              <el-form-item>
-                <template #label>
-                  language_type
-                  <el-tooltip placement="top" content="识别语言类型：CHN_ENG（默认）/ ENG 等。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-select v-model="generalOptions.language_type" style="width:220px"><el-option label="CHN_ENG" value="CHN_ENG"/><el-option label="ENG" value="ENG"/></el-select>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  detect_direction
-                  <el-tooltip placement="top" content="是否检测图像朝向：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="generalOptions.detect_direction"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  detect_language
-                  <el-tooltip placement="top" content="是否检测语言：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="generalOptions.detect_language"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  paragraph
-                  <el-tooltip placement="top" content="是否输出段落信息：true/false。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="generalOptions.paragraph"/>
-              </el-form-item>
-              <el-form-item>
-                <template #label>
-                  probability
-                  <el-tooltip placement="top" content="是否返回每行置信度：true/false（默认false）。"><el-icon class="tip-icon"><QuestionFilled/></el-icon></el-tooltip>
-                </template>
-                <el-switch v-model="generalOptions.probability"/>
-              </el-form-item>
-            </el-form>
-          </div>
-          <div style="text-align:right;margin-top:10px"><button class="btn" @click="showSettings=false">关闭</button></div>
-        </div>
+        <OCRSettings :apiChoice="apiChoice" v-model:docOptions="docOptions" v-model:paperOptions="paperOptions" v-model:handwritingOptions="handwritingOptions" v-model:accurateOptions="accurateOptions" v-model:generalOptions="generalOptions" @close="showSettings=false" />
       </div>
     </div>
 
@@ -612,7 +273,7 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
 
     <div v-if="showAreaSelector" class="modal" @click="showAreaSelector = false">
       <div class="modal-body" @click.stop>
-        <AreaSelector :imageSrc="imagePreview" :single="apiChoice==='paper'" :modelValue="areas" @areas-selected="onAreasSelected" @close="showAreaSelector = false" />
+        <AreaSelector :imageSrc="imagePreview" :modelValue="areas" @areas-selected="onAreasSelected" @close="showAreaSelector = false" />
       </div>
     </div>
 
@@ -652,7 +313,5 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
     }
   }
   .mask-actions { display: flex; gap: 10px; align-items: center }
-  .settings { max-width: 720px }
-  .tip-icon { margin-left: 6px; cursor: help; vertical-align: middle }
 }
 </style>
