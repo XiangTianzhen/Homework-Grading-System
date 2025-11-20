@@ -7,7 +7,7 @@ import BatchUpload from '../components/BatchUpload.vue'
 import ErrorBook from '../components/ErrorBook.vue'
 import HistoryPanel from '../components/HistoryPanel.vue'
 import OCRSettings from '../components/OCRSettings.vue'
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { uploadPaper as uploadPaperAPI, gradePaper as gradePaperAPI } from '../api'
 import { areasMinusMasks, docRecognize, paperRecognize, handwritingRecognize, accurateRecognize, generalRecognize, normalizeText, useOcrState } from '../utils/ocr'
 
@@ -103,7 +103,7 @@ async function runUnifiedOCR() {
 }
 
 async function runDoc() {
-  const r = await docRecognize({ filename: uploadedFile.value.filename, areas: selectedAreas.value, maskAreas: maskAreas.value, options: docOptions.value })
+  const r = await docRecognize({ filename: uploadedFile.value.filename, areas: selectedAreas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, options: docOptions.value })
   ocrResult.value = { fullText: r.fullText, words: r.words }
   extracted.value = r.extracted
   success.value = selectedAreas.value.length ? 'doc分析（选区）完成' : 'doc分析完成'
@@ -116,19 +116,19 @@ async function runPaper() {
 }
 
 async function runHandwriting() {
-  const r = await handwritingRecognize({ filename: uploadedFile.value.filename, areas: selectedAreas.value, maskAreas: maskAreas.value, options: handwritingOptions.value })
+  const r = await handwritingRecognize({ filename: uploadedFile.value.filename, areas: selectedAreas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, options: handwritingOptions.value })
   extracted.value = r.extracted
   success.value = selectedAreas.value.length ? '手写区域识别完成' : '手写整图识别完成'
 }
 
 async function runAccurate() {
-  const r = await accurateRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: selectedAreas.value, maskAreas: maskAreas.value, imageSize: imageSize.value, options: accurateOptions.value })
+  const r = await accurateRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: selectedAreas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: accurateOptions.value })
   extracted.value = r.extracted
   success.value = selectedAreas.value.length ? '高精度区域识别完成' : '高精度整图识别完成'
 }
 
 async function runGeneral() {
-  const r = await generalRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: selectedAreas.value, maskAreas: maskAreas.value, imageSize: imageSize.value, options: generalOptions.value })
+  const r = await generalRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: selectedAreas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: generalOptions.value })
   extracted.value = r.extracted
   success.value = selectedAreas.value.length ? '通用区域识别完成' : '通用整图识别完成'
 }
@@ -144,6 +144,20 @@ function clearMasks() { maskAreas.value = []; maskWords.value = []; maskPreview.
 function handleBatchUploadComplete(results) { showBatchUpload.value = false; success.value = `批量处理完成，成功 ${results.filter(r => r.success).length} 个文件` }
 function addToErrorBook(question, studentAnswer, correctAnswer) { const errorBook = JSON.parse(localStorage.getItem('errorBook') || '[]'); errorBook.push({ id: Date.now(), question, studentAnswer, correctAnswer, addTime: new Date().toISOString(), analysis: '' }); localStorage.setItem('errorBook', JSON.stringify(errorBook)) }
 function saveToHistory() { const history = JSON.parse(localStorage.getItem('gradingHistory') || '[]'); history.unshift({ id: Date.now(), filename: selectedFile.value.name, score: gradeResult.value.score, totalScore: gradeResult.value.totalScore, percentage: gradeResult.value.percentage, answers: studentAnswers.value, details: answerDetails.value, timestamp: new Date().toISOString() }); if (history.length > 50) { history.splice(50) } localStorage.setItem('gradingHistory', JSON.stringify(history)) }
+
+function addAnswerToMask(ans) {
+  const v = normalizeText(ans || '')
+  if (!v) return
+  if (!maskWords.value.includes(v)) maskWords.value.push(v)
+}
+
+function removeExtracted(val) {
+  const v = normalizeText(val || '')
+  const idx = (extracted.value || []).findIndex(x => normalizeText(x || '') === v)
+  if (idx >= 0) extracted.value.splice(idx, 1)
+}
+
+const filteredExtracted = computed(() => (extracted.value || []).filter(ans => !maskWords.value.includes(normalizeText(ans || ''))))
 
 function renderCrops() { if (!imagePreview.value || selectedAreas.value.length === 0 || !imageSize.value.width) { croppedPreviews.value = []; return } const img = new Image(); img.src = imagePreview.value; img.onload = () => { const out = []; const areasToCrop = areasMinusMasks(selectedAreas.value, maskAreas.value); for (const a of areasToCrop) { const sx = Math.max(0, Math.min(Math.round(a.x), img.naturalWidth)); const sy = Math.max(0, Math.min(Math.round(a.y), img.naturalHeight)); const sw = Math.max(1, Math.min(Math.round(a.width), img.naturalWidth - sx)); const sh = Math.max(1, Math.min(Math.round(a.height), img.naturalHeight - sy)); const canvas = document.createElement('canvas'); canvas.width = sw; canvas.height = sh; const ctx = canvas.getContext('2d'); ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh); out.push(canvas.toDataURL('image/png')) } croppedPreviews.value = out } }
 function renderMaskPreview() { if (!imagePreview.value || !imageSize.value.width) { maskPreview.value = null; return } const img = new Image(); img.src = imagePreview.value; img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); ctx.strokeStyle = '#e53935'; ctx.lineWidth = 3; for (const a of maskAreas.value) { ctx.fillStyle = 'rgba(229,57,53,0.15)'; ctx.fillRect(a.x, a.y, a.width, a.height); ctx.strokeRect(a.x, a.y, a.width, a.height) } maskPreview.value = canvas.toDataURL('image/png') } }
@@ -218,7 +232,14 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
         </div>
         <div class="ocr-panel" v-if="showOcrPanel">
           <h3>提取答案（按顺序）</h3>
-          <pre class="ocr-text">{{ pretty(extracted) }}</pre>
+          <div class="answers-list" v-if="filteredExtracted.length">
+            <div class="answer-row" v-for="(ans,i) in filteredExtracted" :key="i">
+              <span class="text">{{ ans }}</span>
+              <button class="btn" @click="addAnswerToMask(ans)">加为屏蔽词</button>
+              <button class="btn del" @click="removeExtracted(ans)">删除</button>
+            </div>
+          </div>
+          <div v-else class="placeholder">暂无提取答案</div>
         </div>
         <AnswerEditor v-model="standardAnswers" />
         <div class="block">
@@ -232,7 +253,7 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
           </div>
           <div class="add-row">
             <button class="add" @click="studentAnswers.push('')">+ 添加答案</button>
-            <button class="add" style="background:#ff9800" @click="studentAnswers = [...extracted]">用提取结果填充</button>
+            <button class="add" style="background:#ff9800" @click="studentAnswers = [...filteredExtracted]">用提取结果填充</button>
           </div>
         </div>
         <div v-if="loading" class="loading">{{ loadingMessage }}</div>
@@ -319,7 +340,16 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
   }
 }
 .results-section { margin-top: 40px; padding: 30px; background: #f8f9fa; border-radius: 15px; .score-display { text-align: center; font-size: 1.6em; color: #4CAF50; margin-bottom: 20px } .details { margin-top: 20px } }
-.ocr-panel { margin-top: 20px; padding: 20px; background: #fff8e1; border-radius: 12px; border: 1px solid #ffe082; .ocr-text { white-space: pre-wrap; font-family: Consolas, Monaco, monospace; background: #fff; border: 1px dashed #ffc107; padding: 12px; border-radius: 8px } }
+.ocr-panel { margin-top: 20px; padding: 20px; background: #fff8e1; border-radius: 12px; border: 1px solid #ffe082;
+  .ocr-text { white-space: pre-wrap; font-family: Consolas, Monaco, monospace; background: #fff; border: 1px dashed #ffc107; padding: 12px; border-radius: 8px }
+  .answers-list { display: flex; flex-direction: column; gap: 8px;
+    .answer-row { display: flex; align-items: center; gap: 8px;
+      .text { flex: 1 }
+      .btn { background: #2196F3; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer }
+      .btn.del { background: #f44336 }
+    }
+  }
+}
 .block { background: #fff; border-radius: 8px; padding: 12px; margin-top: 12px; border: 1px solid #eee;
   pre { white-space: pre-wrap; font-family: Consolas, Monaco, monospace; font-size: 12px }
   .answer-list { display: flex; flex-direction: column; gap: 10px; .answer-item { display: flex; align-items: center; gap: 10px; .index { min-width: 60px; font-weight: 600 } input { flex: 1; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px } .remove { background: #f44336; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer } } }

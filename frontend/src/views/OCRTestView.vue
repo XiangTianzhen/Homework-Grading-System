@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import AreaSelector from '../components/AreaSelector.vue'
 import OCRSettings from '../components/OCRSettings.vue'
 import { areasMinusMasks, docRecognize, paperRecognize, handwritingRecognize, accurateRecognize, generalRecognize, normalizeText, useOcrState } from '../utils/ocr'
@@ -83,7 +83,21 @@ function onMaskSelected(list) { maskAreas.value = list; showMaskSelector.value =
 function addMaskWord() { const v = normalizeText(newMaskWord.value || ''); if (!v) return; if (!maskWords.value.includes(v)) maskWords.value.push(v); newMaskWord.value = '' }
 function removeMaskWord(i) { maskWords.value.splice(i,1) }
 function clearMasks() { maskAreas.value = []; maskWords.value = []; maskPreview.value = null }
- 
+
+function addAnswerToMask(ans) {
+  const v = normalizeText(ans || '')
+  if (!v) return
+  if (!maskWords.value.includes(v)) maskWords.value.push(v)
+}
+
+function removeExtracted(val) {
+  const v = normalizeText(val || '')
+  const idx = (extracted.value || []).findIndex(x => normalizeText(x || '') === v)
+  if (idx >= 0) extracted.value.splice(idx, 1)
+}
+
+const filteredExtracted = computed(() => (extracted.value || []).filter(ans => !maskWords.value.includes(normalizeText(ans || ''))))
+
 
 async function runUnifiedOCR() {
   if (!uploaded.value) return
@@ -100,7 +114,7 @@ async function runUnifiedOCR() {
     if (apiChoice.value === 'handwriting') {
       loading.value = true; err.value = ''
       try {
-        const r = await handwritingRecognize({ filename: uploaded.value.filename, areas: areas.value, maskAreas: maskAreas.value, options: handwritingOptions.value })
+        const r = await handwritingRecognize({ filename: uploaded.value.filename, areas: areas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, options: handwritingOptions.value })
         handRes.value = { text: r.text, words: r.words || [] }
         extracted.value = r.extracted
         msg.value = areas.value.length ? '手写区域识别完成' : '手写整图识别完成'
@@ -108,7 +122,7 @@ async function runUnifiedOCR() {
     } else if (apiChoice.value === 'accurate') {
       loading.value = true; err.value = ''
       try {
-        const r = await accurateRecognize({ filename: uploaded.value.filename, imageSrc: imagePreview.value, areas: areas.value, maskAreas: maskAreas.value, imageSize: imageSize.value, options: accurateOptions.value })
+        const r = await accurateRecognize({ filename: uploaded.value.filename, imageSrc: imagePreview.value, areas: areas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: accurateOptions.value })
         accurateRes.value = { text: r.text }
         extracted.value = r.extracted
         msg.value = areas.value.length ? '高精度区域识别完成' : '高精度整图识别完成'
@@ -116,7 +130,7 @@ async function runUnifiedOCR() {
     } else if (apiChoice.value === 'general') {
       loading.value = true; err.value = ''
       try {
-        const r = await generalRecognize({ filename: uploaded.value.filename, imageSrc: imagePreview.value, areas: areas.value, maskAreas: maskAreas.value, imageSize: imageSize.value, options: generalOptions.value })
+        const r = await generalRecognize({ filename: uploaded.value.filename, imageSrc: imagePreview.value, areas: areas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: generalOptions.value })
         generalRes.value = { text: r.text }
         extracted.value = r.extracted
         msg.value = areas.value.length ? '通用区域识别完成' : '通用整图识别完成'
@@ -124,7 +138,7 @@ async function runUnifiedOCR() {
     } else {
       loading.value = true; msg.value = areas.value.length ? 'doc分析（分片）中...' : 'doc分析中...'; err.value = ''
       try {
-        const r = await docRecognize({ filename: uploaded.value.filename, areas: areas.value, maskAreas: maskAreas.value, options: docOptions.value })
+        const r = await docRecognize({ filename: uploaded.value.filename, areas: areas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, options: docOptions.value })
         ocrRes.value = { fullText: r.fullText, words: r.words }
         extracted.value = r.extracted
         msg.value = areas.value.length ? 'doc分析（选区）完成' : 'doc分析完成'
@@ -253,7 +267,14 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
     <div class="block">
       <h3 v-if="apiChoice!=='handwriting'">括号答案提取</h3>
       <h3 v-else>答案（按框选顺序）</h3>
-      <pre>{{ pretty(extracted) }}</pre>
+      <div class="answers-list" v-if="filteredExtracted.length">
+        <div class="answer-row" v-for="(ans,i) in filteredExtracted" :key="i">
+          <span class="text">{{ ans }}</span>
+          <button class="btn" @click="addAnswerToMask(ans)">加为屏蔽词</button>
+          <button class="btn del" @click="removeExtracted(ans)">删除</button>
+        </div>
+      </div>
+      <div v-else class="placeholder">暂无提取答案</div>
     </div>
 
     <div class="block">
@@ -298,6 +319,13 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
   .placeholder { width: 100%; height: 200px; border: 1px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888 }
   .block { background: #fff; border-radius: 8px; padding: 12px; margin-top: 12px; border: 1px solid #eee;
     pre { white-space: pre-wrap; font-family: Consolas, Monaco, monospace; font-size: 12px }
+    .answers-list { display: flex; flex-direction: column; gap: 8px;
+      .answer-row { display: flex; align-items: center; gap: 8px;
+        .text { flex: 1 }
+        .btn { background: #2196F3; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer }
+        .btn.del { background: #f44336 }
+      }
+    }
   }
   .msg { background: #e8f5e9; color: #2e7d32; padding: 8px 12px; border-radius: 6px }
   .err { background: #ffebee; color: #c62828; padding: 8px 12px; border-radius: 6px }
