@@ -126,15 +126,17 @@ async function uploadAll() {
   try {
     const fileArray = files.value.map(f => f.file)
     const response = await batchProcess(fileArray)
-    
+    const previewMap = Object.fromEntries(files.value.map(f => [f.name, f.preview]))
+
     results.value = response.data.results.map(result => ({
       name: result.originalname,
+      filename: result.filename,
+      preview: previewMap[result.originalname] || '',
       status: result.success ? 'success' : 'error',
       message: result.success ? '处理成功' : result.error,
       data: result
     }))
-    
-    // 通知父组件批量处理完成
+
     emit('batch-complete', results.value)
   } catch (error) {
     results.value = files.value.map(file => ({

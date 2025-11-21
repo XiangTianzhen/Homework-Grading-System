@@ -42,8 +42,9 @@ const gradeResult = ref(null)
 const loading = ref(false)
 const loadingMessage = ref('')
 const error = ref(null)
-const success = ref(null)
-const autoFillWhenEmptyOnly = ref(true)
+  const success = ref(null)
+  const autoFillWhenEmptyOnly = ref(true)
+  const batchResults = ref([])
 const standardAnswers = ref([])
 const answerDetails = ref([])
 const showBatchUpload = ref(false)
@@ -235,7 +236,7 @@ function addMaskWord() { const v = normalizeText(newMaskWord.value || ''); if (!
 function removeMaskWord(i) { maskWords.value.splice(i,1) }
 function clearMasks() { maskAreas.value = []; maskWords.value = []; maskPreview.value = null }
 
-function handleBatchUploadComplete(results) { showBatchUpload.value = false; success.value = `批量处理完成，成功 ${results.filter(r => r.success).length} 个文件` }
+
 function addToErrorBook(question, studentAnswer, correctAnswer) { const errorBook = JSON.parse(localStorage.getItem('errorBook') || '[]'); errorBook.push({ id: Date.now(), question, studentAnswer, correctAnswer, addTime: new Date().toISOString(), analysis: '' }); localStorage.setItem('errorBook', JSON.stringify(errorBook)) }
 function saveToHistory() { const history = JSON.parse(localStorage.getItem('gradingHistory') || '[]'); history.unshift({ id: Date.now(), filename: selectedFile.value.name, score: gradeResult.value.score, totalScore: gradeResult.value.totalScore, percentage: gradeResult.value.percentage, answers: studentAnswers.value, details: answerDetails.value, timestamp: new Date().toISOString() }); if (history.length > 50) { history.splice(50) } localStorage.setItem('gradingHistory', JSON.stringify(history)) }
 
@@ -261,6 +262,78 @@ function autoFillStudentAnswers() {
   const list = [...filteredExtracted.value]
   if (autoFillWhenEmptyOnly.value && hasManualInputs()) { success.value = '已生成提取答案，检测到手动输入，未自动覆盖'; return }
   studentAnswers.value = list
+}
+
+async function handleBatchUploadComplete(list) {
+  showBatchUpload.value = false
+  success.value = `批量上传完成，共 ${list.length} 项`
+  batchResults.value = []
+  for (const item of list) {
+    const entry = { name: item.name, filename: item.filename, success: item.status === 'success', score: 0, totalScore: 0, percentage: 0, answers: [], details: [], error: item.message, show: false }
+    if (!entry.success) { batchResults.value.push(entry); continue }
+    try {
+      let answers = []
+      if ((selectedAreas.value || []).length) {
+        const areasCropped = areasMinusMasks(selectedAreas.value, maskAreas.value)
+        const imgs = (await cropAreasToBase64(item.preview, areasCropped)).map(u => (u || '').split(',')[1])
+        if (apiChoice.value === 'handwriting') {
+          const by = await handwritingByImages(imgs, handwritingOptions.value)
+          const results = by.data?.results || []
+          answers = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
+        } else if (apiChoice.value === 'accurate') {
+          const by = await accurateByImages(imgs, accurateOptions.value)
+          const results = by.data?.results || []
+          answers = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
+        } else if (apiChoice.value === 'general') {
+          const by = await generalByImages(imgs, generalOptions.value)
+          const results = by.data?.results || []
+          answers = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
+        } else {
+          const by = await docByImages(imgs, docOptions.value)
+          const parts = by.data?.parts || []
+          answers = parts.map(p => toBracketAnswer(buildTextFromWords(p.words || []) || (p.text || '')))
+        }
+      } else {
+        if (apiChoice.value === 'paper') {
+          const r = await paperRecognize({ filename: item.filename, imageSrc: item.preview, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: paperOptions.value })
+          answers = r.extracted || []
+        } else if (apiChoice.value === 'handwriting') {
+          const r = await handwritingRecognize({ filename: item.filename, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: handwritingOptions.value })
+          answers = r.extracted || []
+        } else if (apiChoice.value === 'accurate') {
+          const r = await accurateRecognize({ filename: item.filename, imageSrc: item.preview, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: accurateOptions.value })
+          answers = r.extracted || []
+        } else if (apiChoice.value === 'general') {
+          const r = await generalRecognize({ filename: item.filename, imageSrc: item.preview, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: generalOptions.value })
+          answers = r.extracted || []
+        } else {
+          const r = await docRecognize({ filename: item.filename, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: docOptions.value })
+          answers = r.extracted || []
+        }
+      }
+      const filtered = (answers || []).filter(ans => !maskWords.value.includes(normalizeText(ans || '')))
+      const grade = await gradePaperAPI({ answers: standardAnswers.value.map(a => ({ answer: a, score: 1 })), studentAnswers: filtered })
+      entry.score = grade.data?.score || 0
+      entry.totalScore = grade.data?.totalScore || (standardAnswers.value || []).length
+      entry.percentage = grade.data?.percentage || 0
+      entry.answers = filtered
+      entry.details = buildDetailsFor(filtered)
+    } catch (e) {
+      entry.error = e.response?.data?.error || e.message
+      entry.success = false
+    }
+    batchResults.value.push(entry)
+  }
+}
+
+function buildDetailsFor(list) {
+  const std = standardAnswers.value || []
+  const stu = list || []
+  return std.map((ans, i) => {
+    const s = stu[i] || ''
+    const isCorrect = normalizeText(ans) === normalizeText(s)
+    return { index: i + 1, standard: ans, student: s, correct: isCorrect, score: isCorrect ? 1 : 0 }
+  })
 }
 
 function toBracketAnswer(raw) {
@@ -384,6 +457,37 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
             <ResultCard v-for="(d, i) in answerDetails" :key="i" :index="i" :student="d.student" :standard="d.standard" :score="d.score" :maxScore="d.maxScore" @add-to-error-book="addToErrorBook" />
           </div>
         </div>
+        <div class="block" v-if="batchResults.length">
+          <h3>批量识别与评分结果</h3>
+          <div class="batch-list">
+            <div class="batch-item" v-for="(b,i) in batchResults" :key="i">
+              <div class="summary">
+                <span class="name">{{ b.name }}</span>
+                <span class="score">{{ b.score }}/{{ b.totalScore }}（{{ (b.percentage*100).toFixed(1) }}%）</span>
+                <span class="state" :class="b.success ? 'ok' : 'fail'">{{ b.success ? '成功' : '失败' }}</span>
+                <button class="btn" @click="b.show = !b.show">{{ b.show ? '收起详情' : '查看详情' }}</button>
+              </div>
+              <div class="detail" v-if="b.show">
+                <div class="answers">
+                  <div>识别答案（过滤后）：</div>
+                  <ul>
+                    <li v-for="(a,j) in b.answers" :key="j">{{ j+1 }}. {{ a || '未填写' }}</li>
+                  </ul>
+                </div>
+                <div class="table">
+                  <div class="row head"><span>题号</span><span>学生</span><span>标准</span><span>得分</span></div>
+                  <div class="row" v-for="d in b.details" :key="d.index">
+                    <span>{{ d.index }}</span>
+                    <span>{{ d.student || '未填写' }}</span>
+                    <span>{{ d.standard }}</span>
+                    <span>{{ d.score }}</span>
+                  </div>
+                </div>
+                <div class="error" v-if="!b.success && b.error">{{ b.error }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -435,54 +539,341 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
 </template>
 
 <style scoped lang="scss">
-.container { width: 100%; margin: 0 auto; background: #fff; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden;
-  .header { background: linear-gradient(45deg, #4CAF50, #45a049); color: #fff; padding: 30px; text-align: center;
-    h1 { font-size: 2em; margin-bottom: 10px }
-    p { font-size: 1em; opacity: .9 }
+.container {
+  width: 100%;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  overflow: hidden;
+
+  .header {
+    background: linear-gradient(45deg, #4CAF50, #45a049);
+    color: #fff;
+    padding: 30px;
+    text-align: center;
+
+    h1 { font-size: 2em; margin-bottom: 10px; }
+    p { font-size: 1em; opacity: .9; }
   }
-  .content { padding: 40px }
+
+  .content { padding: 40px; }
 }
-.right-panel { .upload-section { text-align: center; margin-bottom: 40px }
-  .upload-area { border: 3px dashed #4CAF50; border-radius: 15px; padding: 60px 20px; background: #f8f9fa; transition: .3s; cursor: pointer;
-    &:hover { background: #e8f5e8; border-color: #45a049 }
-    &.dragover { background: #e8f5e8; border-color: #45a049 }
-    .upload-btn { background: #4CAF50; color: #fff; border: none; padding: 15px 30px; border-radius: 25px; font-size: 1.1em; cursor: pointer; transition: .3s; &:hover { background: #45a049; transform: translateY(-2px) } }
-    .file-input { display: none }
+
+.right-panel {
+  .upload-section {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .upload-area {
+    border: 3px dashed #4CAF50;
+    border-radius: 15px;
+    padding: 60px 20px;
+    background: #f8f9fa;
+    transition: .3s;
+    cursor: pointer;
+
+    &:hover {
+      background: #e8f5e8;
+      border-color: #45a049;
+    }
+
+    &.dragover {
+      background: #e8f5e8;
+      border-color: #45a049;
+    }
+
+    .upload-btn {
+      background: #4CAF50;
+      color: #fff;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 25px;
+      font-size: 1.1em;
+      cursor: pointer;
+      transition: .3s;
+
+      &:hover { background: #45a049; transform: translateY(-2px); }
+    }
+
+    .file-input { display: none; }
   }
 }
-.btn-group { text-align: center; margin-top: 20px;
-  .btn { background: #2196F3; color: #fff; border: none; padding: 12px 25px; border-radius: 20px; margin: 0 10px; cursor: pointer; font-size: 1em; transition: .3s;
-    &:hover { background: #1976D2; transform: translateY(-2px) }
-    &:disabled { background: #ccc; cursor: not-allowed; transform: none }
+
+.btn-group {
+  text-align: center;
+  margin-top: 20px;
+
+  .btn {
+    background: #2196F3;
+    color: #fff;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 20px;
+    margin: 0 10px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: .3s;
+
+    &:hover { background: #1976D2; transform: translateY(-2px); }
+    &:disabled { background: #ccc; cursor: not-allowed; transform: none; }
   }
 }
-.results-section { margin-top: 40px; padding: 30px; background: #f8f9fa; border-radius: 15px; .score-display { text-align: center; font-size: 1.6em; color: #4CAF50; margin-bottom: 20px } .details { margin-top: 20px } }
-.ocr-panel { margin-top: 20px; padding: 20px; background: #fff8e1; border-radius: 12px; border: 1px solid #ffe082;
-  .ocr-text { white-space: pre-wrap; font-family: Consolas, Monaco, monospace; background: #fff; border: 1px dashed #ffc107; padding: 12px; border-radius: 8px }
-  .answers-list { display: flex; flex-direction: column; gap: 8px;
-    .answer-row { display: flex; align-items: center; gap: 8px;
-      .text { flex: 1 }
-      .btn { background: #2196F3; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer }
-      .btn.del { background: #f44336 }
+
+.results-section {
+  margin-top: 40px;
+  padding: 30px;
+  background: #f8f9fa;
+  border-radius: 15px;
+
+  .score-display {
+    text-align: center;
+    font-size: 1.6em;
+    color: #4CAF50;
+    margin-bottom: 20px;
+  }
+
+  .details { margin-top: 20px; }
+}
+
+.ocr-panel {
+  margin-top: 20px;
+  padding: 20px;
+  background: #fff8e1;
+  border-radius: 12px;
+  border: 1px solid #ffe082;
+
+  .ocr-text {
+    white-space: pre-wrap;
+    font-family: Consolas, Monaco, monospace;
+    background: #fff;
+    border: 1px dashed #ffc107;
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .answers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .answer-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .text { flex: 1; }
+      .btn { background: #2196F3; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+      .btn.del { background: #f44336; }
     }
   }
 }
-.block { background: #fff; border-radius: 8px; padding: 12px; margin-top: 12px; border: 1px solid #eee;
-  pre { white-space: pre-wrap; font-family: Consolas, Monaco, monospace; font-size: 12px }
-  .answer-list { display: flex; flex-direction: column; gap: 10px; .answer-item { display: flex; align-items: center; gap: 10px; .index { min-width: 60px; font-weight: 600 } input { flex: 1; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px } .remove { background: #f44336; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer } } }
-  .add-row { margin-top: 10px; display: flex; gap: 10px; justify-content: flex-end; align-items: center; .add { background: #4CAF50; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer } .toggle { display: flex; align-items: center; gap: 6px; font-size: 12px } }
+
+.block {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 12px;
+  border: 1px solid #eee;
+
+  pre {
+    white-space: pre-wrap;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 12px;
+  }
+
+  .answer-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    .answer-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      .index { min-width: 60px; font-weight: 600; }
+      input { flex: 1; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; }
+      .remove { background: #f44336; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+    }
+  }
+
+  .add-row {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    align-items: center;
+
+    .add {
+      background: #4CAF50;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+  }
+
+  .batch-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    .batch-item {
+      border: 1px dashed #e0e0e0;
+      border-radius: 8px;
+      padding: 10px;
+
+      .summary {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+
+        .name { font-weight: 600; }
+        .score { color: #4CAF50; }
+        .state.ok { color: #4CAF50; }
+        .state.fail { color: #f44336; }
+      }
+
+      .detail {
+        margin-top: 8px;
+
+        .answers { margin-bottom: 8px; }
+
+        .table {
+          display: grid;
+          grid-template-columns: 60px 1fr 1fr 60px;
+          gap: 6px;
+
+          .row { display: contents; }
+          .row.head span { font-weight: 600; }
+        }
+
+        .error { color: #f44336; margin-top: 6px; }
+      }
+    }
+  }
 }
-.preview-grid { display: flex; flex-wrap: nowrap; gap: 12px; align-items: flex-start; margin: 12px 0 }
-.preview-item { flex: 1 0 33.33%; min-width: 0 }
-.img-fit { width: 100%; height: auto; border-radius: 8px }
-.placeholder { width: 100%; height: 200px; border: 1px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888 }
-.mask-words { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; input { flex: 1; padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px } }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; .chip { background: #e0f2f1; color: #00695c; padding: 4px 8px; border-radius: 12px; font-size: 12px; b { margin-left: 6px; cursor: pointer } } }
-.mask-actions { display: flex; gap: 10px; align-items: center }
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000 }
-.modal-content { background: white; border-radius: 15px; padding: 20px; max-width: 90%; max-height: 90%; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3) }
-.settings { max-width: 720px }
-.tip-icon { margin-left: 6px; cursor: help; vertical-align: middle }
-@media (max-width: 768px) { .container { .content { padding: 16px } } .right-panel { .upload-area { padding: 30px 12px } .preview-section { .preview-image { max-height: 260px } } } .btn-group { .btn { padding: 10px 18px; border-radius: 16px } } }
-@media (min-width: 2560px) { .container { width: 100%; .header { h1 { font-size: clamp(2.2em, 1.6vw, 3em) } p { font-size: clamp(1.1em, 1vw, 1.6em) } } } .right-panel { .upload-area { padding: 80px 30px } .preview-section { .preview-image { max-height: 600px } } } .btn-group { .btn { font-size: clamp(1em, 0.9vw, 1.4em); padding: 16px 28px } } }
+
+.preview-grid {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 12px 0;
+}
+
+.preview-item { flex: 1 0 33.33%; min-width: 0; }
+
+.img-fit { width: 100%; height: auto; border-radius: 8px; }
+
+.placeholder {
+  width: 100%;
+  height: 200px;
+  border: 1px dashed #ccc;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+}
+
+.mask-words {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+
+  input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+  }
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+
+  .chip {
+    background: #e0f2f1;
+    color: #00695c;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+
+    b { margin-left: 6px; cursor: pointer; }
+  }
+}
+
+.mask-actions { display: flex; gap: 10px; align-items: center; }
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 15px;
+  padding: 20px;
+  max-width: 90%;
+  max-height: 90%;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.settings { max-width: 720px; }
+
+.tip-icon { margin-left: 6px; cursor: help; vertical-align: middle; }
+
+@media (max-width: 768px) {
+  .container { .content { padding: 16px; } }
+
+  .right-panel {
+    .upload-area { padding: 30px 12px; }
+    .preview-section { .preview-image { max-height: 260px; } }
+  }
+
+  .btn-group { .btn { padding: 10px 18px; border-radius: 16px; } }
+}
+
+@media (min-width: 2560px) {
+  .container {
+    width: 100%;
+
+    .header {
+      h1 { font-size: clamp(2.2em, 1.6vw, 3em); }
+      p { font-size: clamp(1.1em, 1vw, 1.6em); }
+    }
+  }
+
+  .right-panel {
+    .upload-area { padding: 80px 30px; }
+    .preview-section { .preview-image { max-height: 600px; } }
+  }
+
+  .btn-group { .btn { font-size: clamp(1em, 0.9vw, 1.4em); padding: 16px 28px; } }
+}
 </style>
