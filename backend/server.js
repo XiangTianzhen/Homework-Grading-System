@@ -28,7 +28,11 @@ const storage = multer.diskStorage({
     cb(null, 'uploads/');
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
+    const orig = file.originalname || ''
+    let decoded = orig
+    try { decoded = Buffer.from(orig, 'latin1').toString('utf8') } catch (e) {}
+    const name = `${Date.now()}-${decoded}`
+    cb(null, name);
   }
 });
 
@@ -43,7 +47,9 @@ app.get('/', (req, res) => {
 // 文件上传接口
 app.post('/upload', upload.single('paper'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: '请上传试卷图片' });
-  logger.writeStart('upload', { originalname: req.file.originalname, size: req.file.size, mimetype: req.file.mimetype });
+  let orig = req.file.originalname || ''
+  try { orig = Buffer.from(orig, 'latin1').toString('utf8') } catch (e) {}
+  logger.writeStart('upload', { originalname: orig, size: req.file.size, mimetype: req.file.mimetype });
   logger.writeEnd('upload', { file: req.file.filename, path: req.file.path });
   res.json({ message: '试卷上传成功', filename: req.file.filename, path: req.file.path });
 });
@@ -392,7 +398,7 @@ app.post('/batch', upload.array('papers'), async (req, res) => {
         if (ocrResult.success) {
           results.push({
             filename: file.filename,
-            originalname: file.originalname,
+            originalname: (() => { try { return Buffer.from(file.originalname || '', 'latin1').toString('utf8') } catch (e) { return file.originalname } })(),
             success: true,
             answers: ocrResult.answers,
             fullText: ocrResult.fullText
@@ -400,7 +406,7 @@ app.post('/batch', upload.array('papers'), async (req, res) => {
         } else {
           results.push({
             filename: file.filename,
-            originalname: file.originalname,
+            originalname: (() => { try { return Buffer.from(file.originalname || '', 'latin1').toString('utf8') } catch (e) { return file.originalname } })(),
             success: false,
             error: ocrResult.error
           });
@@ -408,7 +414,7 @@ app.post('/batch', upload.array('papers'), async (req, res) => {
       } catch (error) {
         results.push({
           filename: file.filename,
-          originalname: file.originalname,
+          originalname: (() => { try { return Buffer.from(file.originalname || '', 'latin1').toString('utf8') } catch (e) { return file.originalname } })(),
           success: false,
           error: error.message
         });

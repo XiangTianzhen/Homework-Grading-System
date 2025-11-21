@@ -3,7 +3,7 @@ import AnswerEditor from '../components/AnswerEditor.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import ResultCard from '../components/ResultCard.vue'
 import AreaSelector from '../components/AreaSelector.vue'
-import BatchUpload from '../components/BatchUpload.vue'
+import BatchEdit from '../components/BatchEdit.vue'
 import ErrorBook from '../components/ErrorBook.vue'
 import HistoryPanel from '../components/HistoryPanel.vue'
 import OCRSettings from '../components/OCRSettings.vue'
@@ -47,7 +47,7 @@ const error = ref(null)
   const batchResults = ref([])
 const standardAnswers = ref([])
 const answerDetails = ref([])
-const showBatchUpload = ref(false)
+const showBatchEdit = ref(false)
 const showErrorBook = ref(false)
 const showHistory = ref(false)
 const showOcrPanel = ref(false)
@@ -62,6 +62,14 @@ function createImagePreview(file) {
   const img = new Image()
   img.onload = () => { imageSize.value = { width: img.naturalWidth, height: img.naturalHeight } }
   img.src = URL.createObjectURL(file)
+}
+const displayFileName = computed(() => fixDisplayName(selectedFile.value?.name || ''))
+function fixDisplayName(str) {
+  const s = String(str || '')
+  let decoded = s
+  try { decoded = decodeURIComponent(escape(s)) } catch (e) {}
+  decoded = decoded.replace(/\.[^.]+$/, '')
+  return decoded
 }
 function clearMessages() { error.value = null; success.value = null }
 function handleFileSelect(e) {
@@ -264,9 +272,9 @@ function autoFillStudentAnswers() {
   studentAnswers.value = list
 }
 
-async function handleBatchUploadComplete(list) {
-  showBatchUpload.value = false
-  success.value = `批量上传完成，共 ${list.length} 项`
+async function handleBatchEditComplete(list) {
+  showBatchEdit.value = false
+  success.value = `批量修改完成，共 ${list.length} 项`
   batchResults.value = []
   for (const item of list) {
     const entry = { name: item.name, filename: item.filename, success: item.status === 'success', score: 0, totalScore: 0, percentage: 0, answers: [], details: [], error: item.message, show: false }
@@ -362,7 +370,7 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
     <div class="content">
       <div class="right-panel">
         <div class="upload-section">
-          <div class="upload-area" @click="triggerFileInput" @drop="handleDrop" @dragover.prevent @dragenter.prevent @dragenter="dragOver" @dragleave="dragLeave">
+      <div class="upload-area" @click="triggerFileInput" @drop="handleDrop" @dragover.prevent @dragenter.prevent @dragenter="dragOver" @dragleave="dragLeave">
             <input type="file" ref="fileInput" @change="handleFileSelect" accept="image/*" class="file-input">
             <div v-if="!selectedFile">
               <h3>拖拽或点击上传试卷图片</h3>
@@ -371,7 +379,7 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
             </div>
             <div v-else>
               <h3>已选择文件</h3>
-              <p>{{ selectedFile.name }}</p>
+              <p>{{ displayFileName }}</p>
             </div>
           </div>
         </div>
@@ -411,7 +419,7 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
           <button class="btn" @click="runWholeBracket" :disabled="!uploadedFile || loading">{{ loading ? '识别中...' : '整图识别括号答案提取' }}</button>
           <button class="btn" @click="runAreaAnswers" :disabled="!uploadedFile || !selectedAreas.length || loading">{{ loading ? '检测中...' : '答案区域检测' }}</button>
           <button class="btn" @click="gradePaper" :disabled="!studentAnswers.length || !standardAnswers.length || loading">{{ loading ? '评分中...' : '开始评分' }}</button>
-          <button class="btn" @click="showBatchUpload = true">批量上传</button>
+          <button class="btn" @click="showBatchEdit = true" :disabled="!uploadedFile || !standardAnswers.length || loading">批量修改</button>
         </div>
         <div class="btn-group">
           <button class="btn" @click="showErrorBook = true">错题本</button>
@@ -501,9 +509,9 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
         <AreaSelector :imageSrc="imagePreview" :modelValue="maskAreas" @areas-selected="onMaskSelected" @close="showMaskSelector = false" />
       </div>
     </div>
-    <div v-if="showBatchUpload" class="modal-overlay" @click="showBatchUpload = false">
+    <div v-if="showBatchEdit" class="modal-overlay" @click="showBatchEdit = false">
       <div class="modal-content" @click.stop>
-        <BatchUpload @batch-complete="handleBatchUploadComplete" @close="showBatchUpload = false" />
+        <BatchEdit @batch-edit-complete="handleBatchEditComplete" @close="showBatchEdit = false" />
       </div>
     </div>
     <div v-if="showErrorBook" class="modal-overlay" @click="showErrorBook = false">

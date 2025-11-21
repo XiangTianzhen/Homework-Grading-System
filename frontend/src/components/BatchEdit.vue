@@ -128,8 +128,9 @@ async function uploadAll() {
     const response = await batchProcess(fileArray)
     const previewMap = Object.fromEntries(files.value.map(f => [f.name, f.preview]))
 
+    const fix = (s) => { try { return decodeURIComponent(escape(String(s||''))) } catch(e) { return String(s||'') } }
     results.value = response.data.results.map(result => ({
-      name: result.originalname,
+      name: fix(result.originalname),
       filename: result.filename,
       preview: previewMap[result.originalname] || '',
       status: result.success ? 'success' : 'error',
@@ -137,7 +138,7 @@ async function uploadAll() {
       data: result
     }))
 
-    emit('batch-complete', results.value)
+    emit('batch-edit-complete', results.value)
   } catch (error) {
     results.value = files.value.map(file => ({
       name: file.name,
