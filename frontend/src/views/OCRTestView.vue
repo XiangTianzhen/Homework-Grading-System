@@ -2,7 +2,8 @@
 import { ref, watch, computed } from 'vue'
 import AreaSelector from '../components/AreaSelector.vue'
 import OCRSettings from '../components/OCRSettings.vue'
-import { areasMinusMasks, docRecognize, paperRecognize, handwritingRecognize, accurateRecognize, generalRecognize, normalizeText, useOcrState } from '../utils/ocr'
+import { areasMinusMasks, docRecognize, paperRecognize, handwritingRecognize, accurateRecognize, generalRecognize, normalizeText, useOcrState, filterWordsByMasks, buildTextFromWords, cropAreasToBase64 } from '../utils/ocr'
+import { handwritingByImages, accurateByImages, generalByImages, docByImages } from '../api'
 import { uploadPaper as uploadPaperAPI } from '../api'
 
 const {
@@ -98,6 +99,114 @@ function removeExtracted(val) {
 
 const filteredExtracted = computed(() => (extracted.value || []).filter(ans => !maskWords.value.includes(normalizeText(ans || ''))))
 
+
+function toBracketAnswer(raw) {
+  const s = String(raw || '')
+  const t = s.replace(/（/g, '(').replace(/）/g, ')')
+  const i = t.indexOf('(')
+  if (i >= 0) {
+    const j = t.indexOf(')', i + 1)
+    return (j >= 0 ? t.slice(i + 1, j) : t.slice(i + 1)).trim()
+  }
+  return t.trim()
+}
+
+async function runWholeBracket() {
+  if (!uploaded.value) return
+  loading.value = true; msg.value = '整图识别中...'; err.value = ''
+  try {
+    switch (apiChoice.value) {
+      case 'paper': {
+        const r = await paperRecognize({ filename: uploaded.value.filename, imageSrc: imagePreview.value, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: paperOptions.value })
+        paperRes.value = { questions: r.questions }
+        extracted.value = r.extracted
+        break
+      }
+      case 'handwriting': {
+        const r = await handwritingRecognize({ filename: uploaded.value.filename, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: handwritingOptions.value })
+        handRes.value = { text: r.text, words: r.words || [] }
+        extracted.value = r.extracted
+        break
+      }
+      case 'accurate': {
+        const r = await accurateRecognize({ filename: uploaded.value.filename, imageSrc: imagePreview.value, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: accurateOptions.value })
+        accurateRes.value = { text: r.text }
+        extracted.value = r.extracted
+        break
+      }
+      case 'general': {
+        const r = await generalRecognize({ filename: uploaded.value.filename, imageSrc: imagePreview.value, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: generalOptions.value })
+        generalRes.value = { text: r.text }
+        extracted.value = r.extracted
+        break
+      }
+      default: {
+        const r = await docRecognize({ filename: uploaded.value.filename, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: docOptions.value })
+        ocrRes.value = { fullText: r.fullText, words: r.words }
+        extracted.value = r.extracted
+        break
+      }
+    }
+    msg.value = '整图识别括号答案提取完成'
+  } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false }
+}
+
+async function runAreaAnswers() {
+  if (!uploaded.value) return
+  if (!areas.value.length) { err.value = '请先进行区域框选'; return }
+  loading.value = true; msg.value = '答案区域检测中...'; err.value = ''
+  try {
+    const areasCropped = areasMinusMasks(areas.value, maskAreas.value)
+    const imgs = (await cropAreasToBase64(imagePreview.value, areasCropped)).map(u => (u || '').split(',')[1])
+    switch (apiChoice.value) {
+      case 'handwriting': {
+        const by = await handwritingByImages(imgs, handwritingOptions.value)
+        const results = by.data?.results || []
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        const allWords = results.flatMap(r => r.words || [])
+        const text = buildTextFromWords(allWords) || results.map(r => (r.text || '')).join('')
+        handRes.value = { text, words: allWords }
+        extracted.value = perTexts
+        break
+      }
+      case 'accurate': {
+        const by = await accurateByImages(imgs, accurateOptions.value)
+        const results = by.data?.results || []
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        const allWords = results.flatMap(r => r.words || [])
+        const text = buildTextFromWords(allWords) || results.map(r => (r.text || '')).join('')
+        accurateRes.value = { text }
+        extracted.value = perTexts
+        break
+      }
+      case 'general': {
+        const by = await generalByImages(imgs, generalOptions.value)
+        const results = by.data?.results || []
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        const allWords = results.flatMap(r => r.words || [])
+        const text = buildTextFromWords(allWords) || results.map(r => (r.text || '')).join('')
+        generalRes.value = { text }
+        extracted.value = perTexts
+        break
+      }
+      case 'paper': {
+        err.value = '答案区域检测暂不支持 paper_cut_edu 接口'
+        break
+      }
+      default: {
+        const by = await docByImages(imgs, docOptions.value)
+        const parts = by.data?.parts || []
+        const perTexts = parts.map(p => toBracketAnswer(buildTextFromWords(p.words || []) || (p.text || ''))).filter(Boolean)
+        const allWords = parts.flatMap(p => p.words || [])
+        const fullText = by.data?.fullText || buildTextFromWords(allWords) || parts.map(p => (p.text || '')).join('')
+        ocrRes.value = { fullText, words: allWords }
+        extracted.value = perTexts
+        break
+      }
+    }
+    if (!err.value) msg.value = '答案区域检测完成'
+  } catch (e) { err.value = e.response?.data?.error || e.message } finally { loading.value = false; renderCrops() }
+}
 
 async function runUnifiedOCR() {
   if (!uploaded.value) return
@@ -213,7 +322,8 @@ watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
         <el-option label="通用文字识别（标准版）general_basic" value="general" />
       </el-select>
       <button class="btn" @click="showSettings = true">设置</button>
-      <button class="btn" @click="runUnifiedOCR" :disabled="!uploaded || loading">{{ loading ? '识别中...' : 'OCR识别' }}</button>
+      <button class="btn" @click="runWholeBracket" :disabled="!uploaded || loading">{{ loading ? '识别中...' : '整图识别括号答案提取' }}</button>
+      <button class="btn" @click="runAreaAnswers" :disabled="!uploaded || !areas.length || loading">{{ loading ? '检测中...' : '答案区域检测' }}</button>
       <button class="btn" @click="showImages = !showImages">{{ showImages ? '隐藏图片' : '显示图片' }}</button>
       <button class="btn" @click="showUploadRes = !showUploadRes">{{ showUploadRes ? '隐藏上传返回' : '显示上传返回' }}</button>
       <button class="btn" @click="showOcrRes = !showOcrRes">{{ showOcrRes ? '隐藏识别返回' : '显示识别返回' }}</button>

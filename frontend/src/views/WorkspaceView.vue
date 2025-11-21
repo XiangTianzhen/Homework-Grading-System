@@ -8,7 +8,8 @@ import ErrorBook from '../components/ErrorBook.vue'
 import HistoryPanel from '../components/HistoryPanel.vue'
 import OCRSettings from '../components/OCRSettings.vue'
 import { ref, watch, computed } from 'vue'
-import { uploadPaper as uploadPaperAPI, gradePaper as gradePaperAPI } from '../api'
+import { uploadPaper as uploadPaperAPI, gradePaper as gradePaperAPI, handwritingByImages, accurateByImages, generalByImages, docByImages } from '../api'
+import { filterWordsByMasks, buildTextFromWords, cropAreasToBase64 } from '../utils/ocr'
 import { areasMinusMasks, docRecognize, paperRecognize, handwritingRecognize, accurateRecognize, generalRecognize, normalizeText, useOcrState } from '../utils/ocr'
 
 const {
@@ -133,6 +134,84 @@ async function runGeneral() {
   success.value = selectedAreas.value.length ? '通用区域识别完成' : '通用整图识别完成'
 }
 
+async function runWholeBracket() {
+  loading.value = true; loadingMessage.value = '整图识别中...'; clearMessages()
+  try {
+    switch (apiChoice.value) {
+      case 'paper': {
+        const r = await paperRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: paperOptions.value })
+        extracted.value = r.extracted
+        break
+      }
+      case 'handwriting': {
+        const r = await handwritingRecognize({ filename: uploadedFile.value.filename, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: handwritingOptions.value })
+        extracted.value = r.extracted
+        break
+      }
+      case 'accurate': {
+        const r = await accurateRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: accurateOptions.value })
+        extracted.value = r.extracted
+        break
+      }
+      case 'general': {
+        const r = await generalRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: generalOptions.value })
+        extracted.value = r.extracted
+        break
+      }
+      default: {
+        const r = await docRecognize({ filename: uploadedFile.value.filename, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: docOptions.value })
+        extracted.value = r.extracted
+        break
+      }
+    }
+    success.value = '整图识别括号答案提取完成'
+  } catch (err) { error.value = err.response?.data?.error || err.message } finally { loading.value = false }
+}
+
+async function runAreaAnswers() {
+  if (!selectedAreas.value.length) { error.value = '请先进行区域框选'; return }
+  loading.value = true; loadingMessage.value = '答案区域检测中...'; clearMessages()
+  try {
+    const areasCropped = areasMinusMasks(selectedAreas.value, maskAreas.value)
+    const imgs = (await cropAreasToBase64(imagePreview.value, areasCropped)).map(u => (u || '').split(',')[1])
+    switch (apiChoice.value) {
+      case 'handwriting': {
+        const by = await handwritingByImages(imgs, handwritingOptions.value)
+        const results = by.data?.results || []
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        extracted.value = perTexts
+        break
+      }
+      case 'accurate': {
+        const by = await accurateByImages(imgs, accurateOptions.value)
+        const results = by.data?.results || []
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        extracted.value = perTexts
+        break
+      }
+      case 'general': {
+        const by = await generalByImages(imgs, generalOptions.value)
+        const results = by.data?.results || []
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        extracted.value = perTexts
+        break
+      }
+      case 'paper': {
+        error.value = '答案区域检测暂不支持 paper_cut_edu 接口';
+        break
+      }
+      default: {
+        const by = await docByImages(imgs, docOptions.value)
+        const parts = by.data?.parts || []
+        const perTexts = parts.map(p => toBracketAnswer(buildTextFromWords(p.words || []) || (p.text || ''))).filter(Boolean)
+        extracted.value = perTexts
+        break
+      }
+    }
+    if (!error.value) success.value = '答案区域检测完成'
+  } catch (err) { error.value = err.response?.data?.error || err.message } finally { loading.value = false; renderCrops() }
+}
+
 async function gradePaper() { if (!ocrResult.value) return; loading.value = true; loadingMessage.value = '正在进行智能评分...'; clearMessages(); try { const res = await gradePaperAPI(standardAnswers.value, studentAnswers.value); gradeResult.value = res.data; buildDetails(); success.value = '评分完成'; saveToHistory() } catch (err) { error.value = '评分失败：' + (err.response?.data?.error || err.message) } finally { loading.value = false } }
 
 function handleAreaSelected(areas) { selectedAreas.value = areas; showAreaSelector.value = false }
@@ -158,6 +237,17 @@ function removeExtracted(val) {
 }
 
 const filteredExtracted = computed(() => (extracted.value || []).filter(ans => !maskWords.value.includes(normalizeText(ans || ''))))
+
+function toBracketAnswer(raw) {
+  const s = String(raw || '')
+  const t = s.replace(/（/g, '(').replace(/）/g, ')')
+  const i = t.indexOf('(')
+  if (i >= 0) {
+    const j = t.indexOf(')', i + 1)
+    return (j >= 0 ? t.slice(i + 1, j) : t.slice(i + 1)).trim()
+  }
+  return t.trim()
+}
 
 function renderCrops() { if (!imagePreview.value || selectedAreas.value.length === 0 || !imageSize.value.width) { croppedPreviews.value = []; return } const img = new Image(); img.src = imagePreview.value; img.onload = () => { const out = []; const areasToCrop = areasMinusMasks(selectedAreas.value, maskAreas.value); for (const a of areasToCrop) { const sx = Math.max(0, Math.min(Math.round(a.x), img.naturalWidth)); const sy = Math.max(0, Math.min(Math.round(a.y), img.naturalHeight)); const sw = Math.max(1, Math.min(Math.round(a.width), img.naturalWidth - sx)); const sh = Math.max(1, Math.min(Math.round(a.height), img.naturalHeight - sy)); const canvas = document.createElement('canvas'); canvas.width = sw; canvas.height = sh; const ctx = canvas.getContext('2d'); ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh); out.push(canvas.toDataURL('image/png')) } croppedPreviews.value = out } }
 function renderMaskPreview() { if (!imagePreview.value || !imageSize.value.width) { maskPreview.value = null; return } const img = new Image(); img.src = imagePreview.value; img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); ctx.strokeStyle = '#e53935'; ctx.lineWidth = 3; for (const a of maskAreas.value) { ctx.fillStyle = 'rgba(229,57,53,0.15)'; ctx.fillRect(a.x, a.y, a.width, a.height); ctx.strokeRect(a.x, a.y, a.width, a.height) } maskPreview.value = canvas.toDataURL('image/png') } }
@@ -220,7 +310,8 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
           <button class="btn" @click="showAreaSelector = true">区域框选</button>
           <button class="btn" @click="showMaskSelector = true">屏蔽区域</button>
           <button class="btn" @click="showSettings = true">设置</button>
-          <button class="btn" @click="startOCR" :disabled="!uploadedFile || loading">{{ loading ? '识别中...' : 'OCR识别' }}</button>
+          <button class="btn" @click="runWholeBracket" :disabled="!uploadedFile || loading">{{ loading ? '识别中...' : '整图识别括号答案提取' }}</button>
+          <button class="btn" @click="runAreaAnswers" :disabled="!uploadedFile || !selectedAreas.length || loading">{{ loading ? '检测中...' : '答案区域检测' }}</button>
           <button class="btn" @click="gradePaper" :disabled="!studentAnswers.length || !standardAnswers.length || loading">{{ loading ? '评分中...' : '开始评分' }}</button>
           <button class="btn" @click="showBatchUpload = true">批量上传</button>
         </div>
