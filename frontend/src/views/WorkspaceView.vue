@@ -43,6 +43,7 @@ const loading = ref(false)
 const loadingMessage = ref('')
 const error = ref(null)
 const success = ref(null)
+const autoFillWhenEmptyOnly = ref(true)
 const standardAnswers = ref([])
 const answerDetails = ref([])
 const showBatchUpload = ref(false)
@@ -107,30 +108,35 @@ async function runDoc() {
   const r = await docRecognize({ filename: uploadedFile.value.filename, areas: selectedAreas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, options: docOptions.value })
   ocrResult.value = { fullText: r.fullText, words: r.words }
   extracted.value = r.extracted
+  autoFillStudentAnswers()
   success.value = selectedAreas.value.length ? 'doc分析（选区）完成' : 'doc分析完成'
 }
 
 async function runPaper() {
   const r = await paperRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: selectedAreas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, options: paperOptions.value })
   extracted.value = r.extracted
+  autoFillStudentAnswers()
   success.value = selectedAreas.value.length ? '试卷切题识别完成（区域）' : '试卷切题识别完成'
 }
 
 async function runHandwriting() {
   const r = await handwritingRecognize({ filename: uploadedFile.value.filename, areas: selectedAreas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, options: handwritingOptions.value })
   extracted.value = r.extracted
+  autoFillStudentAnswers()
   success.value = selectedAreas.value.length ? '手写区域识别完成' : '手写整图识别完成'
 }
 
 async function runAccurate() {
   const r = await accurateRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: selectedAreas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: accurateOptions.value })
   extracted.value = r.extracted
+  autoFillStudentAnswers()
   success.value = selectedAreas.value.length ? '高精度区域识别完成' : '高精度整图识别完成'
 }
 
 async function runGeneral() {
   const r = await generalRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: selectedAreas.value, maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: generalOptions.value })
   extracted.value = r.extracted
+  autoFillStudentAnswers()
   success.value = selectedAreas.value.length ? '通用区域识别完成' : '通用整图识别完成'
 }
 
@@ -141,26 +147,31 @@ async function runWholeBracket() {
       case 'paper': {
         const r = await paperRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: paperOptions.value })
         extracted.value = r.extracted
+        autoFillStudentAnswers()
         break
       }
       case 'handwriting': {
         const r = await handwritingRecognize({ filename: uploadedFile.value.filename, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: handwritingOptions.value })
         extracted.value = r.extracted
+        autoFillStudentAnswers()
         break
       }
       case 'accurate': {
         const r = await accurateRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: accurateOptions.value })
         extracted.value = r.extracted
+        autoFillStudentAnswers()
         break
       }
       case 'general': {
         const r = await generalRecognize({ filename: uploadedFile.value.filename, imageSrc: imagePreview.value, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, imageSize: imageSize.value, options: generalOptions.value })
         extracted.value = r.extracted
+        autoFillStudentAnswers()
         break
       }
       default: {
         const r = await docRecognize({ filename: uploadedFile.value.filename, areas: [], maskAreas: maskAreas.value, maskWords: maskWords.value, options: docOptions.value })
         extracted.value = r.extracted
+        autoFillStudentAnswers()
         break
       }
     }
@@ -180,6 +191,7 @@ async function runAreaAnswers() {
         const results = by.data?.results || []
         const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
         extracted.value = perTexts
+        autoFillStudentAnswers()
         break
       }
       case 'accurate': {
@@ -187,6 +199,7 @@ async function runAreaAnswers() {
         const results = by.data?.results || []
         const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
         extracted.value = perTexts
+        autoFillStudentAnswers()
         break
       }
       case 'general': {
@@ -194,6 +207,7 @@ async function runAreaAnswers() {
         const results = by.data?.results || []
         const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
         extracted.value = perTexts
+        autoFillStudentAnswers()
         break
       }
       case 'paper': {
@@ -205,6 +219,7 @@ async function runAreaAnswers() {
         const parts = by.data?.parts || []
         const perTexts = parts.map(p => toBracketAnswer(buildTextFromWords(p.words || []) || (p.text || '')))
         extracted.value = perTexts
+        autoFillStudentAnswers()
         break
       }
     }
@@ -237,6 +252,16 @@ function removeExtracted(val) {
 }
 
 const filteredExtracted = computed(() => (extracted.value || []).filter(ans => !maskWords.value.includes(normalizeText(ans || ''))))
+
+function hasManualInputs() {
+  return (studentAnswers.value || []).some(a => (String(a || '').trim().length > 0))
+}
+
+function autoFillStudentAnswers() {
+  const list = [...filteredExtracted.value]
+  if (autoFillWhenEmptyOnly.value && hasManualInputs()) { success.value = '已生成提取答案，检测到手动输入，未自动覆盖'; return }
+  studentAnswers.value = list
+}
 
 function toBracketAnswer(raw) {
   const s = String(raw || '')
@@ -345,6 +370,7 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
           <div class="add-row">
             <button class="add" @click="studentAnswers.push('')">+ 添加答案</button>
             <button class="add" style="background:#ff9800" @click="studentAnswers = [...filteredExtracted]">用提取结果填充</button>
+            <label class="toggle"><input type="checkbox" v-model="autoFillWhenEmptyOnly" /> 自动填充仅覆盖空答案</label>
           </div>
         </div>
         <div v-if="loading" class="loading">{{ loadingMessage }}</div>
@@ -444,7 +470,7 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
 .block { background: #fff; border-radius: 8px; padding: 12px; margin-top: 12px; border: 1px solid #eee;
   pre { white-space: pre-wrap; font-family: Consolas, Monaco, monospace; font-size: 12px }
   .answer-list { display: flex; flex-direction: column; gap: 10px; .answer-item { display: flex; align-items: center; gap: 10px; .index { min-width: 60px; font-weight: 600 } input { flex: 1; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px } .remove { background: #f44336; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer } } }
-  .add-row { margin-top: 10px; display: flex; gap: 10px; justify-content: flex-end; .add { background: #4CAF50; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer } }
+  .add-row { margin-top: 10px; display: flex; gap: 10px; justify-content: flex-end; align-items: center; .add { background: #4CAF50; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer } .toggle { display: flex; align-items: center; gap: 6px; font-size: 12px } }
 }
 .preview-grid { display: flex; flex-wrap: nowrap; gap: 12px; align-items: flex-start; margin: 12px 0 }
 .preview-item { flex: 1 0 33.33%; min-width: 0 }
