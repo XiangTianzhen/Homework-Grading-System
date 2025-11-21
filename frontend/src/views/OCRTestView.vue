@@ -106,7 +106,8 @@ function toBracketAnswer(raw) {
   const i = t.indexOf('(')
   if (i >= 0) {
     const j = t.indexOf(')', i + 1)
-    return (j >= 0 ? t.slice(i + 1, j) : t.slice(i + 1)).trim()
+    const content = (j >= 0 ? t.slice(i + 1, j) : t.slice(i + 1))
+    return content.replace(/^[\s，、。；;：:!！?？,]+|[\s，、。；;：:!！?？,]+$/g, '').trim()
   }
   return t.trim()
 }
@@ -162,7 +163,7 @@ async function runAreaAnswers() {
       case 'handwriting': {
         const by = await handwritingByImages(imgs, handwritingOptions.value)
         const results = by.data?.results || []
-        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
         const allWords = results.flatMap(r => r.words || [])
         const text = buildTextFromWords(allWords) || results.map(r => (r.text || '')).join('')
         handRes.value = { text, words: allWords }
@@ -172,7 +173,7 @@ async function runAreaAnswers() {
       case 'accurate': {
         const by = await accurateByImages(imgs, accurateOptions.value)
         const results = by.data?.results || []
-        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
         const allWords = results.flatMap(r => r.words || [])
         const text = buildTextFromWords(allWords) || results.map(r => (r.text || '')).join('')
         accurateRes.value = { text }
@@ -182,7 +183,7 @@ async function runAreaAnswers() {
       case 'general': {
         const by = await generalByImages(imgs, generalOptions.value)
         const results = by.data?.results || []
-        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
         const allWords = results.flatMap(r => r.words || [])
         const text = buildTextFromWords(allWords) || results.map(r => (r.text || '')).join('')
         generalRes.value = { text }
@@ -196,7 +197,7 @@ async function runAreaAnswers() {
       default: {
         const by = await docByImages(imgs, docOptions.value)
         const parts = by.data?.parts || []
-        const perTexts = parts.map(p => toBracketAnswer(buildTextFromWords(p.words || []) || (p.text || ''))).filter(Boolean)
+        const perTexts = parts.map(p => toBracketAnswer(buildTextFromWords(p.words || []) || (p.text || '')))
         const allWords = parts.flatMap(p => p.words || [])
         const fullText = by.data?.fullText || buildTextFromWords(allWords) || parts.map(p => (p.text || '')).join('')
         ocrRes.value = { fullText, words: allWords }

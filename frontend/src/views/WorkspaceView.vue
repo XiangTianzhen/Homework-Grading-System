@@ -178,21 +178,21 @@ async function runAreaAnswers() {
       case 'handwriting': {
         const by = await handwritingByImages(imgs, handwritingOptions.value)
         const results = by.data?.results || []
-        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
         extracted.value = perTexts
         break
       }
       case 'accurate': {
         const by = await accurateByImages(imgs, accurateOptions.value)
         const results = by.data?.results || []
-        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
         extracted.value = perTexts
         break
       }
       case 'general': {
         const by = await generalByImages(imgs, generalOptions.value)
         const results = by.data?.results || []
-        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || ''))).filter(Boolean)
+        const perTexts = results.map(r => toBracketAnswer(buildTextFromWords(r.words || []) || (r.text || '')))
         extracted.value = perTexts
         break
       }
@@ -203,7 +203,7 @@ async function runAreaAnswers() {
       default: {
         const by = await docByImages(imgs, docOptions.value)
         const parts = by.data?.parts || []
-        const perTexts = parts.map(p => toBracketAnswer(buildTextFromWords(p.words || []) || (p.text || ''))).filter(Boolean)
+        const perTexts = parts.map(p => toBracketAnswer(buildTextFromWords(p.words || []) || (p.text || '')))
         extracted.value = perTexts
         break
       }
