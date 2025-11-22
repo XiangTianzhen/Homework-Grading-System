@@ -26,12 +26,13 @@ frontend/src/
 ├── components/
 │   ├── AnswerEditor.vue
 │   ├── AreaSelector.vue
-│   ├── BatchUpload.vue
+│   ├── BatchEdit.vue
 │   ├── ErrorBook.vue
 │   ├── HistoryPanel.vue
 │   ├── ProgressBar.vue
 │   ├── QuestionTypeSelector.vue
 │   ├── ResultCard.vue
+│   ├── OCRSettings.vue
 │   └── TestImageGenerator.vue
 └── styles/
     ├── _variables.scss
@@ -84,6 +85,7 @@ $env:BAIDU_OCR_SECRET_KEY = "你的Secret Key"
 **通用区域识别（旧版）**
 - `POST /ocr/areas`（`{ filename, areas:[{x,y,width,height}], options? }`）→ `{ message, results:[{ success, text, area, words }] }`
 - 批量处理 `POST /batch`（FormData: `papers`）→ `{ message, results:[{ filename, originalname, success, answers, fullText, error }] }`
+  - `originalname` 已按 Latin-1→UTF-8 解码，中文名不再乱码；前端批量详情展示预览、原始与过滤答案及题目状态。
 
 ## 日志规范
 - 路径：`backend/log/`

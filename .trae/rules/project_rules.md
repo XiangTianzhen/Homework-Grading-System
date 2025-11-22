@@ -27,7 +27,8 @@
 - 关键组件：
   - `AnswerEditor.vue` 标准答案编辑
   - `AreaSelector.vue` 手动框选区域
-  - `BatchUpload.vue` 批量上传
+  - `BatchEdit.vue` 批量修改（沿用首张设置批量识别与评分，含详情弹窗）
+  - `OCRSettings.vue` OCR 参数设置面板（按接口动态表单）
   - `ErrorBook.vue` 错题本
   - `HistoryPanel.vue` 历史记录
   - `ProgressBar.vue` 进度展示
@@ -104,6 +105,7 @@
   - `POST /ocr/areas`（`{ filename, areas:[{x,y,width,height}], options? }`）→ `{ message, results:[{ success, text, area, words }] }`
 
 - 批量处理 `POST /batch`（FormData: `papers[]`）→ `{ message, results:[...] }`
+  - 返回项包含：`filename`、`originalname`（中文已修复为 UTF-8）、`success`、`answers/fullText 或 error`
 
 - 日志事件键：`server_start/server_init/ping_root/upload_start/upload_end`，`doc_analysis_start/doc_analysis_end/doc_analysis_failed/doc_analysis_exception`，`area_ocr_start/area_ocr_end/area_ocr_failed`，`paper_cut_edu_start/paper_cut_edu_end/paper_cut_edu_failed/paper_cut_edu_exception`，`handwriting/accurate_basic/general_basic` 系列的 start/end/failed/exception，`grade_done/grade_failed`，`batch_process_done/batch_process_failed`
 
@@ -194,3 +196,16 @@
 
 ## 17.安全与隐私
 - 不提交任何密钥或敏感信息到仓库；使用环境变量管理。
+
+## 18. 工作台功能
+- 识别按钮：
+  - `整图识别括号答案提取`：强制整图识别，提取文本中括号内答案，保留空括号；屏蔽词与屏蔽区域生效。
+  - `答案区域检测`：需先区域框选；对每个选区识别，其识别文本即为该题答案；支持手写/高精度/通用与 doc 分片。
+- 屏蔽：支持屏蔽区域与屏蔽词，实时过滤提取答案；可一键将提取项加入屏蔽词。
+- 自动填充：识别完成后自动将提取答案填充到“识别答案编辑”；提供开关“自动填充仅覆盖空答案”。
+- 评分：基于标准答案（题型+分值）与学生答案进行判分；百分比显示使用后端返回的 `percentage`（0–100）。
+- 批量修改：
+  - 使用首张的接口选择、选区/屏蔽设置与标准答案，对后续图片批量识别与评分。
+  - 结果项提供详情弹窗：图片预览、原始识别答案、过滤后答案、题号状态（✓/✗）与错题清单。
+  - 按钮在未上传首张图片或未设置标准答案时禁用。
+- 文件名：后端存储与返回文件名前缀 `Date.now()`，原始名按 Latin-1→UTF-8 解码，中文不再乱码。
