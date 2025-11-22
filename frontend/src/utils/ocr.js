@@ -132,7 +132,7 @@ export function filterWordsByMasks(words, masks) {
 
 /** 将 LaTeX 分数 \\frac{a}{b} 规整为 a/b */
 export function normalizeLatexFraction(s) {
-  return (s || '').replace(/\\frac\s*\{\s*(\d+)\s*\}\s*\{\s*(\d+)\s*\}/g, (_, a, b) => `${a}/${b}`)
+  return String(s || '').replace(/\\frac\s*\{\s*(\d+)\s*\}\s*\{\s*(\d+)\s*\}/g, (_, a, b) => `${a}/${b}`)
 }
 
 /** 文本规整：空白/标点/括号统一 */

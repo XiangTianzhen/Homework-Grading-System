@@ -42,15 +42,17 @@ const gradeResult = ref(null)
 const loading = ref(false)
 const loadingMessage = ref('')
 const error = ref(null)
-  const success = ref(null)
-  const autoFillWhenEmptyOnly = ref(true)
-  const batchResults = ref([])
+const success = ref(null)
+const autoFillWhenEmptyOnly = ref(false)
+const batchResults = ref([])
 const standardAnswers = ref([])
 const answerDetails = ref([])
 const showBatchEdit = ref(false)
 const showErrorBook = ref(false)
 const showHistory = ref(false)
 const showOcrPanel = ref(false)
+const showBatchDetail = ref(false)
+const selectedBatch = ref(null)
 
  
 
@@ -236,7 +238,7 @@ async function runAreaAnswers() {
   } catch (err) { error.value = err.response?.data?.error || err.message } finally { loading.value = false; renderCrops() }
 }
 
-async function gradePaper() { if (!ocrResult.value) return; loading.value = true; loadingMessage.value = '正在进行智能评分...'; clearMessages(); try { const res = await gradePaperAPI(standardAnswers.value, studentAnswers.value); gradeResult.value = res.data; buildDetails(); success.value = '评分完成'; saveToHistory() } catch (err) { error.value = '评分失败：' + (err.response?.data?.error || err.message) } finally { loading.value = false } }
+async function gradePaper() { loading.value = true; loadingMessage.value = '正在进行智能评分...'; clearMessages(); try { const res = await gradePaperAPI(standardAnswers.value, studentAnswers.value); gradeResult.value = res.data; buildDetails(); success.value = '评分完成'; saveToHistory() } catch (err) { error.value = '评分失败：' + (err.response?.data?.error || err.message) } finally { loading.value = false } }
 
 function handleAreaSelected(areas) { selectedAreas.value = areas; showAreaSelector.value = false }
 function onMaskSelected(list) { maskAreas.value = list; showMaskSelector.value = false }
@@ -272,12 +274,14 @@ function autoFillStudentAnswers() {
   studentAnswers.value = list
 }
 
+function openBatchDetail(b) { selectedBatch.value = b; showBatchDetail.value = true }
+
 async function handleBatchEditComplete(list) {
   showBatchEdit.value = false
   success.value = `批量修改完成，共 ${list.length} 项`
   batchResults.value = []
   for (const item of list) {
-    const entry = { name: item.name, filename: item.filename, success: item.status === 'success', score: 0, totalScore: 0, percentage: 0, answers: [], details: [], error: item.message, show: false }
+    const entry = { name: item.name, filename: item.filename, preview: item.preview, success: item.status === 'success', score: 0, totalScore: 0, percentage: 0, answersRaw: [], answers: [], details: [], error: item.message, show: false }
     if (!entry.success) { batchResults.value.push(entry); continue }
     try {
       let answers = []
@@ -319,8 +323,9 @@ async function handleBatchEditComplete(list) {
           answers = r.extracted || []
         }
       }
+      entry.answersRaw = answers || []
       const filtered = (answers || []).filter(ans => !maskWords.value.includes(normalizeText(ans || '')))
-      const grade = await gradePaperAPI({ answers: standardAnswers.value.map(a => ({ answer: a, score: 1 })), studentAnswers: filtered })
+      const grade = await gradePaperAPI(standardAnswers.value, filtered)
       entry.score = grade.data?.score || 0
       entry.totalScore = grade.data?.totalScore || (standardAnswers.value || []).length
       entry.percentage = grade.data?.percentage || 0
@@ -471,29 +476,44 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
             <div class="batch-item" v-for="(b,i) in batchResults" :key="i">
               <div class="summary">
                 <span class="name">{{ b.name }}</span>
-                <span class="score">{{ b.score }}/{{ b.totalScore }}（{{ (b.percentage*100).toFixed(1) }}%）</span>
+                <span class="score">{{ b.score }}/{{ b.totalScore }}（{{ b.percentage }}%）</span>
                 <span class="state" :class="b.success ? 'ok' : 'fail'">{{ b.success ? '成功' : '失败' }}</span>
-                <button class="btn" @click="b.show = !b.show">{{ b.show ? '收起详情' : '查看详情' }}</button>
+                <button class="btn" @click="openBatchDetail(b)">查看详情</button>
               </div>
               <div class="detail" v-if="b.show">
+                <div class="image" v-if="b.preview">
+                  <img :src="b.preview" alt="预览" class="img-fit" />
+                </div>
+                <div class="answers">
+                  <div>识别答案（原始）：</div>
+                  <ul>
+                    <li v-for="(a,j) in b.answersRaw" :key="'r'+j">{{ j+1 }}. {{ a || '未填写' }}</li>
+                  </ul>
+                </div>
                 <div class="answers">
                   <div>识别答案（过滤后）：</div>
                   <ul>
-                    <li v-for="(a,j) in b.answers" :key="j">{{ j+1 }}. {{ a || '未填写' }}</li>
+                    <li v-for="(a,j) in b.answers" :key="'f'+j">{{ j+1 }}. {{ a || '未填写' }}</li>
                   </ul>
                 </div>
                 <div class="table">
-                  <div class="row head"><span>题号</span><span>学生</span><span>标准</span><span>得分</span></div>
+                  <div class="row head"><span>题号</span><span>学生</span><span>标准</span><span>状态</span></div>
                   <div class="row" v-for="d in b.details" :key="d.index">
                     <span>{{ d.index }}</span>
                     <span>{{ d.student || '未填写' }}</span>
                     <span>{{ d.standard }}</span>
-                    <span>{{ d.score }}</span>
+                    <span>{{ d.correct ? '✓' : '✗' }}</span>
                   </div>
+                </div>
+                <div class="answers" v-if="b.details && b.details.some(x=>!x.correct)">
+                  <div>错题：</div>
+                  <ul>
+                    <li v-for="d in b.details.filter(x => !x.correct)" :key="'w'+d.index">第{{ d.index }}题</li>
+                  </ul>
                 </div>
                 <div class="error" v-if="!b.success && b.error">{{ b.error }}</div>
               </div>
-            </div>
+              </div>
           </div>
         </div>
       </div>
@@ -512,6 +532,49 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
     <div v-if="showBatchEdit" class="modal-overlay" @click="showBatchEdit = false">
       <div class="modal-content" @click.stop>
         <BatchEdit @batch-edit-complete="handleBatchEditComplete" @close="showBatchEdit = false" />
+      </div>
+    </div>
+    <div v-if="showBatchDetail" class="modal-overlay" @click="showBatchDetail = false">
+      <div class="modal-content" @click.stop>
+        <div v-if="selectedBatch" class="batch-detail">
+          <div class="summary">
+            <span class="name">{{ selectedBatch.name }}</span>
+            <span class="score">{{ selectedBatch.score }}/{{ selectedBatch.totalScore }}（{{ selectedBatch.percentage }}%）</span>
+            <span class="state" :class="selectedBatch.success ? 'ok' : 'fail'">{{ selectedBatch.success ? '成功' : '失败' }}</span>
+          </div>
+          <div class="image" v-if="selectedBatch.preview">
+            <img :src="selectedBatch.preview" alt="预览" class="img-fit" />
+          </div>
+          <div class="answers">
+            <div>识别答案（原始）：</div>
+            <ul>
+              <li v-for="(a,j) in selectedBatch.answersRaw" :key="'r'+j">{{ j+1 }}. {{ a || '未填写' }}</li>
+            </ul>
+          </div>
+          <div class="answers">
+            <div>识别答案（过滤后）：</div>
+            <ul>
+              <li v-for="(a,j) in selectedBatch.answers" :key="'f'+j">{{ j+1 }}. {{ a || '未填写' }}</li>
+            </ul>
+          </div>
+          <div class="table">
+            <div class="row head"><span>题号</span><span>学生</span><span>标准</span><span>状态</span></div>
+            <div class="row" v-for="d in selectedBatch.details" :key="d.index">
+              <span>{{ d.index }}</span>
+              <span>{{ d.student || '未填写' }}</span>
+              <span>{{ d.standard }}</span>
+              <span>{{ d.correct ? '✓' : '✗' }}</span>
+            </div>
+          </div>
+          <div class="answers" v-if="selectedBatch.details && selectedBatch.details.some(x=>!x.correct)">
+            <div>错题：</div>
+            <ul>
+              <li v-for="d in selectedBatch.details.filter(x => !x.correct)" :key="'w'+d.index">第{{ d.index }}题</li>
+            </ul>
+          </div>
+          <div class="error" v-if="!selectedBatch.success && selectedBatch.error">{{ selectedBatch.error }}</div>
+          <div style="text-align:right;margin-top:10px"><button class="btn" @click="showBatchDetail = false">关闭</button></div>
+        </div>
       </div>
     </div>
     <div v-if="showErrorBook" class="modal-overlay" @click="showErrorBook = false">
