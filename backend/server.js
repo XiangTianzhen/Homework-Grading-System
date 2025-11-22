@@ -15,7 +15,6 @@ const logger = new Logger();
 
 // 中间件
 app.use(cors());
-app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
 // 创建上传目录
@@ -31,12 +30,19 @@ const storage = multer.diskStorage({
     const orig = file.originalname || ''
     let decoded = orig
     try { decoded = Buffer.from(orig, 'latin1').toString('utf8') } catch (e) {}
-    const name = `${Date.now()}-${decoded}`
+    const safeDecoded = decoded.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '_').slice(0, 200)
+    const name = `${Date.now()}-${safeDecoded}`
     cb(null, name);
   }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    const ok = /^image\/(png|jpe?g|webp|bmp)$/i.test(file.mimetype)
+    cb(null, ok)
+  }
+});
 
 // 简单的路由
 app.get('/', (req, res) => {
@@ -95,6 +101,7 @@ app.post('/grade', async (req, res) => {
     const { answers, studentAnswers } = req.body;
     let score = 0;
     let totalScore = 0;
+    function normText(s) { return String(s || '').replace(/\s+/g, '').replace(/[，。、．]/g, '').replace(/[（]/g, '(').replace(/[）]/g, ')').replace(/[〈⟨]/g, '(').replace(/[〉⟩]/g, ')').replace(/：/g, ':') }
     function normJudge(s) {
       const v = (s || '').trim();
       if (!v) return '';
@@ -116,13 +123,13 @@ app.post('/grade', async (req, res) => {
       const sa = studentAnswers[i] || '';
       const std = answers[i].answer || '';
       let ok = false;
-      if (type === 'judge') ok = normJudge(sa) === normJudge(std);
-      else if (type === 'choice') ok = normChoice(sa) === normChoice(std);
-      else ok = normFill(sa) === normFill(std);
+      if (type === 'judge') { const sj = normJudge(sa); const st = normJudge(std); ok = sj === st || normText(sa).includes(normText(std)) }
+      else if (type === 'choice') { const sc = normChoice(sa); const st = normChoice(std); ok = sc === st || normText(sa).includes(normText(std)) }
+      else ok = normText(sa) === normText(std);
       if (ok) score += answers[i].score;
     }
     logger.write('grade_done', { score, totalScore });
-    res.json({ score, totalScore, percentage: Math.round((score / totalScore) * 100) });
+    res.json({ score, totalScore, percentage: totalScore > 0 ? Math.round((score / totalScore) * 100) : 0 });
   } catch (error) {
     logger.write('grade_failed', { error: error.message });
     res.status(500).json({ error: '评分失败' });

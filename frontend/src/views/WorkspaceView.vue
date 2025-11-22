@@ -79,12 +79,21 @@ function handleFileSelect(e) {
   if (file && file.type.startsWith('image/')) { selectedFile.value = file; createImagePreview(file); clearMessages() } else { error.value = '请选择图片文件' }
 }
 function buildDetails() {
-  answerDetails.value = standardAnswers.value.map((std, i) => ({
-    student: studentAnswers.value[i] || '',
-    standard: std.answer,
-    score: studentAnswers.value[i] === std.answer ? std.score : 0,
-    maxScore: std.score
-  }))
+  function normJudge(s) { const v = (s || '').trim(); if (!v) return ''; if (/^(√|v|V|✔|t|T|true)$/i.test(v)) return '√'; if (/^(×|x|X|✖|f|F|false)$/i.test(v)) return '×'; return v }
+  function normChoice(s) { const v = (s || '').trim(); if (!v) return ''; return v.toUpperCase() }
+  function isCorrect(std, s) {
+    const type = std.type || 'fill'
+    const stdAns = String(std.answer || '')
+    const stuAns = String(s || '')
+    if (type === 'judge') { const sj = normJudge(stuAns); const st = normJudge(stdAns); return sj === st || normalizeText(stuAns).includes(normalizeText(stdAns)) }
+    if (type === 'choice') { const sc = normChoice(stuAns); const st = normChoice(stdAns); return sc === st || normalizeText(stuAns).includes(normalizeText(stdAns)) }
+    return normalizeText(stuAns) === normalizeText(stdAns)
+  }
+  answerDetails.value = standardAnswers.value.map((std, i) => {
+    const s = studentAnswers.value[i] || ''
+    const ok = isCorrect(std, s)
+    return { student: s, standard: std.answer, score: ok ? std.score : 0, maxScore: std.score }
+  })
 }
 function handleDrop(e) { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file && file.type.startsWith('image/')) { selectedFile.value = file; createImagePreview(file); clearMessages() } else { error.value = '请拖拽图片文件' } e.target.classList.remove('dragover') }
 function dragOver(e) { e.target.classList.add('dragover') }
@@ -342,10 +351,20 @@ async function handleBatchEditComplete(list) {
 function buildDetailsFor(list) {
   const std = standardAnswers.value || []
   const stu = list || []
+  function normJudge(s) { const v = (s || '').trim(); if (!v) return ''; if (/^(√|v|V|✔|t|T|true)$/i.test(v)) return '√'; if (/^(×|x|X|✖|f|F|false)$/i.test(v)) return '×'; return v }
+  function normChoice(s) { const v = (s || '').trim(); if (!v) return ''; return v.toUpperCase() }
+  function isCorrect(std, s) {
+    const type = std.type || 'fill'
+    const stdAns = String(std.answer || '')
+    const stuAns = String(s || '')
+    if (type === 'judge') { const sj = normJudge(stuAns); const st = normJudge(stdAns); return sj === st || normalizeText(stuAns).includes(normalizeText(stdAns)) }
+    if (type === 'choice') { const sc = normChoice(stuAns); const st = normChoice(stdAns); return sc === st || normalizeText(stuAns).includes(normalizeText(stdAns)) }
+    return normalizeText(stuAns) === normalizeText(stdAns)
+  }
   return std.map((ans, i) => {
     const s = stu[i] || ''
-    const isCorrect = normalizeText(ans) === normalizeText(s)
-    return { index: i + 1, standard: ans, student: s, correct: isCorrect, score: isCorrect ? 1 : 0 }
+    const ok = isCorrect(ans, s)
+    return { index: i + 1, type: ans.type || 'fill', standard: ans.answer, student: s, correct: ok, score: ok ? ans.score : 0, maxScore: ans.score }
   })
 }
 
@@ -497,11 +516,13 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
                   </ul>
                 </div>
                 <div class="table">
-                  <div class="row head"><span>题号</span><span>学生</span><span>标准</span><span>状态</span></div>
+                  <div class="row head"><span>题号</span><span>学生答案</span><span>题型</span><span>标准答案</span><span>分数</span><span>是否正确</span></div>
                   <div class="row" v-for="d in b.details" :key="d.index">
                     <span>{{ d.index }}</span>
                     <span>{{ d.student || '未填写' }}</span>
+                    <span>{{ d.type }}</span>
                     <span>{{ d.standard }}</span>
+                    <span>{{ d.score }}/{{ d.maxScore }}</span>
                     <span>{{ d.correct ? '✓' : '✗' }}</span>
                   </div>
                 </div>
@@ -558,11 +579,13 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
             </ul>
           </div>
           <div class="table">
-            <div class="row head"><span>题号</span><span>学生</span><span>标准</span><span>状态</span></div>
+            <div class="row head"><span>题号</span><span>学生答案</span><span>题型</span><span>标准答案</span><span>分数</span><span>是否正确</span></div>
             <div class="row" v-for="d in selectedBatch.details" :key="d.index">
               <span>{{ d.index }}</span>
               <span>{{ d.student || '未填写' }}</span>
+              <span>{{ d.type }}</span>
               <span>{{ d.standard }}</span>
+              <span>{{ d.score }}/{{ d.maxScore }}</span>
               <span>{{ d.correct ? '✓' : '✗' }}</span>
             </div>
           </div>
@@ -823,7 +846,7 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
 
         .table {
           display: grid;
-          grid-template-columns: 60px 1fr 1fr 60px;
+          grid-template-columns: 60px 1fr 100px 1fr 100px 80px;
           gap: 6px;
 
           .row { display: contents; }
