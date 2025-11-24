@@ -54,6 +54,12 @@ const showOcrPanel = ref(false)
 const showBatchDetail = ref(false)
 const selectedBatch = ref(null)
 
+const isAreasCountMatch = computed(() => {
+  const a = (selectedAreas.value || []).length
+  const s = (standardAnswers.value || []).length
+  return a === 0 || a === s
+})
+
  
 
 function triggerFileInput() { fileInput.value && fileInput.value.click() }
@@ -289,6 +295,10 @@ async function handleBatchEditComplete(list) {
   showBatchEdit.value = false
   success.value = `批量修改完成，共 ${list.length} 项`
   batchResults.value = []
+  if ((selectedAreas.value || []).length && (selectedAreas.value.length !== (standardAnswers.value || []).length)) {
+    error.value = `区域框选数量（${selectedAreas.value.length}）与标准答案题数（${(standardAnswers.value || []).length}）不一致，请调整后再进行批量识别`
+    return
+  }
   for (const item of list) {
     const entry = { name: item.name, filename: item.filename, preview: item.preview, success: item.status === 'success', score: 0, totalScore: 0, percentage: 0, answersRaw: [], answers: [], details: [], error: item.message, show: false }
     if (!entry.success) { batchResults.value.push(entry); continue }
@@ -383,6 +393,7 @@ function renderCrops() { if (!imagePreview.value || selectedAreas.value.length =
 function renderMaskPreview() { if (!imagePreview.value || !imageSize.value.width) { maskPreview.value = null; return } const img = new Image(); img.src = imagePreview.value; img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); ctx.strokeStyle = '#e53935'; ctx.lineWidth = 3; for (const a of maskAreas.value) { ctx.fillStyle = 'rgba(229,57,53,0.15)'; ctx.fillRect(a.x, a.y, a.width, a.height); ctx.strokeRect(a.x, a.y, a.width, a.height) } maskPreview.value = canvas.toDataURL('image/png') } }
 
 watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPreview, { deep: true }); watch(imagePreview, () => { renderCrops(); renderMaskPreview() })
+function toTypeLabel(t) { const m = { fill: '填空题', choice: '选择题', judge: '判断题' }; return m[String(t||'')] || '填空题' }
 </script>
 
 <template>
@@ -443,7 +454,7 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
           <button class="btn" @click="runWholeBracket" :disabled="!uploadedFile || loading">{{ loading ? '识别中...' : '整图识别括号答案提取' }}</button>
           <button class="btn" @click="runAreaAnswers" :disabled="!uploadedFile || !selectedAreas.length || loading">{{ loading ? '检测中...' : '答案区域检测' }}</button>
           <button class="btn" @click="gradePaper" :disabled="!studentAnswers.length || !standardAnswers.length || loading">{{ loading ? '评分中...' : '开始评分' }}</button>
-          <button class="btn" @click="showBatchEdit = true" :disabled="!uploadedFile || !standardAnswers.length || loading">批量修改</button>
+          <button class="btn" @click="showBatchEdit = true" :disabled="!uploadedFile || !standardAnswers.length || loading || !isAreasCountMatch">批量修改</button>
         </div>
         <div class="btn-group">
           <button class="btn" @click="showErrorBook = true">错题本</button>
@@ -518,12 +529,12 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
                 <div class="table">
                   <div class="row head"><span>题号</span><span>学生答案</span><span>题型</span><span>标准答案</span><span>分数</span><span>是否正确</span></div>
                   <div class="row" v-for="d in b.details" :key="d.index">
-                    <span>{{ d.index }}</span>
+                    <span class="center">{{ d.index }}</span>
                     <span>{{ d.student || '未填写' }}</span>
-                    <span>{{ d.type }}</span>
+                    <span class="type">{{ toTypeLabel(d.type) }}</span>
                     <span>{{ d.standard }}</span>
-                    <span>{{ d.score }}/{{ d.maxScore }}</span>
-                    <span>{{ d.correct ? '✓' : '✗' }}</span>
+                    <span class="center">{{ d.score }}/{{ d.maxScore }}</span>
+                    <span :class="d.correct ? 'status ok' : 'status fail'">{{ d.correct ? '✓' : '✗' }}</span>
                   </div>
                 </div>
                 <div class="answers" v-if="b.details && b.details.some(x=>!x.correct)">
@@ -581,12 +592,12 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
           <div class="table">
             <div class="row head"><span>题号</span><span>学生答案</span><span>题型</span><span>标准答案</span><span>分数</span><span>是否正确</span></div>
             <div class="row" v-for="d in selectedBatch.details" :key="d.index">
-              <span>{{ d.index }}</span>
+              <span class="center">{{ d.index }}</span>
               <span>{{ d.student || '未填写' }}</span>
-              <span>{{ d.type }}</span>
+              <span class="type">{{ toTypeLabel(d.type) }}</span>
               <span>{{ d.standard }}</span>
-              <span>{{ d.score }}/{{ d.maxScore }}</span>
-              <span>{{ d.correct ? '✓' : '✗' }}</span>
+              <span class="center">{{ d.score }}/{{ d.maxScore }}</span>
+              <span :class="d.correct ? 'status ok' : 'status fail'">{{ d.correct ? '✓' : '✗' }}</span>
             </div>
           </div>
           <div class="answers" v-if="selectedBatch.details && selectedBatch.details.some(x=>!x.correct)">
@@ -850,7 +861,13 @@ watch(selectedAreas, renderCrops, { deep: true }); watch(maskAreas, renderMaskPr
           gap: 6px;
 
           .row { display: contents; }
-          .row.head span { font-weight: 600; }
+          .row.head span { font-weight: 600; background: #f6f7f9; padding: 8px 10px; border-radius: 6px }
+          .row span { padding: 8px 10px; background: #fff; border-bottom: 1px solid #eee }
+          .row .center { text-align: center }
+          .row .type { color: #00695c; font-weight: 600 }
+          .row .status { display: inline-block; text-align: center; border-radius: 12px; padding: 2px 8px }
+          .row .status.ok { background: #e8f5e9; color: #2e7d32 }
+          .row .status.fail { background: #ffebee; color: #c62828 }
         }
 
         .error { color: #f44336; margin-top: 6px; }
