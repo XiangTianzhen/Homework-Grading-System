@@ -449,7 +449,7 @@ function toTypeLabel(t) { const m = { fill: '填空题', choice: '选择题', ju
             <el-option label="通用文字识别（标准版）general_basic" value="general" />
           </el-select>
           <button class="btn" @click="showAreaSelector = true">区域框选</button>
-          <button class="btn" @click="showMaskSelector = true">屏蔽区域</button>
+          <!-- <button class="btn" @click="showMaskSelector = true">屏蔽区域</button> -->
           <button class="btn" @click="showSettings = true">设置</button>
           <button class="btn" @click="runWholeBracket" :disabled="!uploadedFile || loading">{{ loading ? '识别中...' : '整图识别括号答案提取' }}</button>
           <button class="btn" @click="runAreaAnswers" :disabled="!uploadedFile || !selectedAreas.length || loading">{{ loading ? '检测中...' : '答案区域检测' }}</button>
@@ -457,9 +457,9 @@ function toTypeLabel(t) { const m = { fill: '填空题', choice: '选择题', ju
           <button class="btn" @click="showBatchEdit = true" :disabled="!uploadedFile || !standardAnswers.length || loading || !isAreasCountMatch">批量修改</button>
         </div>
         <div class="btn-group">
-          <button class="btn" @click="showErrorBook = true">错题本</button>
+          <!-- <button class="btn" @click="showErrorBook = true">错题本</button>
           <button class="btn" @click="showHistory = true">历史记录</button>
-          <button class="btn" @click="showOcrPanel = !showOcrPanel">{{ showOcrPanel ? '关闭OCR结果' : '显示OCR结果' }}</button>
+          <button class="btn" @click="showOcrPanel = !showOcrPanel">{{ showOcrPanel ? '关闭OCR结果' : '显示OCR结果' }}</button> -->
           <button class="btn" @click="showImages = !showImages">{{ showImages ? '隐藏图片' : '显示图片' }}</button>
         </div>
         <div class="ocr-panel" v-if="showOcrPanel">
@@ -626,7 +626,7 @@ function toTypeLabel(t) { const m = { fill: '填空题', choice: '选择题', ju
         <OCRSettings :apiChoice="apiChoice" v-model:docOptions="docOptions" v-model:paperOptions="paperOptions" v-model:handwritingOptions="handwritingOptions" v-model:accurateOptions="accurateOptions" v-model:generalOptions="generalOptions" @close="showSettings=false" />
       </div>
     </div>
-    <div class="block">
+    <!-- <div class="block">
       <h3>屏蔽词</h3>
       <div class="mask-words">
         <input v-model="newMaskWord" placeholder="输入屏蔽词" />
@@ -639,7 +639,7 @@ function toTypeLabel(t) { const m = { fill: '填空题', choice: '选择题', ju
         <button class="btn" @click="clearMasks">清空屏蔽</button>
         <span>屏蔽区域数：{{ maskAreas.length }}</span>
       </div>
-    </div>
+    </div> -->
   </div>
 </template>
 
