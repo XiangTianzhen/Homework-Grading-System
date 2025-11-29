@@ -58,6 +58,50 @@ $env:BAIDU_OCR_SECRET_KEY = "你的Secret Key"
 **请求体大小**
 - 后端 `express.json/urlencoded` 已提升到 `50MB`，建议裁剪图片数量与尺寸合理控制，避免触发 `413`。
 
+## 部署与运行（本地与 Docker）
+- 本地开发（Windows PowerShell）：
+  - 安装依赖：
+    ```
+    npm install; npm --prefix frontend install; npm --prefix backend install
+    ```
+  - 设置环境变量并并发启动前后端：
+    ```
+    $env:BAIDU_OCR_API_KEY="你的API Key"; $env:BAIDU_OCR_SECRET_KEY="你的Secret Key"; npm run dev
+    ```
+  - 访问：前端 `http://localhost:5173`，后端 `http://localhost:3000`
+
+- 生产构建（非容器）：
+  - 构建前端：
+    ```
+    cd frontend; npm run build
+    ```
+  - 启动后端：
+    ```
+    cd ../backend; $env:BAIDU_OCR_API_KEY="你的API Key"; $env:BAIDU_OCR_SECRET_KEY="你的Secret Key"; npm run start
+    ```
+
+- 容器化部署（Docker Compose）：
+  - 前置：安装 Docker Desktop；在 PowerShell 会话设置环境变量：
+    ```
+    $env:BAIDU_OCR_API_KEY="你的API Key"; $env:BAIDU_OCR_SECRET_KEY="你的Secret Key"
+    ```
+  - 构建并启动：
+    ```
+    docker compose up -d --build
+    ```
+  - 访问：前端 `http://localhost:5173`（Nginx 静态资源 + 反向代理 `/api` 到后端），后端 `http://localhost:3000`
+  - 常用命令：
+    ```
+    docker compose logs -f backend
+    docker compose logs -f frontend
+    docker compose down
+    ```
+  - 数据持久化：`uploads/` 与 `log/` 目录已绑定为宿主机卷，容器重启不丢失上传文件与日志。
+
+- 安全与密钥：
+  - 不要将密钥写入代码仓库；通过环境变量或 CI/CD Secrets 注入。
+  - 如需使用 `.env` 文件，请确保加入 `.gitignore` 且使用占位符示例文件（例如 `.env.example`）。
+
 ## API 概览（后端）
 - `GET /`：健康检查 → `{ message }`
 - 上传 `POST /upload`（FormData: `paper`）→ `{ message, filename, path }`

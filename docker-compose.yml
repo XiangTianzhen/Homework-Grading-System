@@ -1,0 +1,26 @@
+version: "3.8"
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: grader-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - BAIDU_OCR_API_KEY=${BAIDU_OCR_API_KEY}
+      - BAIDU_OCR_SECRET_KEY=${BAIDU_OCR_SECRET_KEY}
+    volumes:
+      - ./backend/uploads:/usr/src/app/uploads
+      - ./backend/log:/usr/src/app/log
+    restart: unless-stopped
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: grader-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
