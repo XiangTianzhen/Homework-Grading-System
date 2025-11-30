@@ -81,13 +81,26 @@ $env:BAIDU_OCR_SECRET_KEY = "你的Secret Key"
     ```
 
 - 容器化部署（Docker Compose）：
-  - 前置：安装 Docker Desktop；在 PowerShell 会话设置环境变量：
+  - 前置：安装 Docker Desktop；使用配置文件夹管理端口与密钥：
+    - 复制示例并填写：
+      ```
+      Copy-Item config\backend.env.example config\backend.env
+      Copy-Item config\compose.env.example config\compose.env
+      ```
+    - 编辑 `config/backend.env`（容器内环境）：
+      ```
+      PORT=3000
+      BAIDU_OCR_API_KEY=你的APIKey
+      BAIDU_OCR_SECRET_KEY=你的SecretKey
+      ```
+    - 编辑 `config/compose.env`（宿主机端口映射）：
+      ```
+      BACKEND_HOST_PORT=3000
+      FRONTEND_HOST_PORT=5173
+      ```
+  - 构建并启动（引用配置文件夹）：
     ```
-    $env:BAIDU_OCR_API_KEY="你的API Key"; $env:BAIDU_OCR_SECRET_KEY="你的Secret Key"
-    ```
-  - 构建并启动：
-    ```
-    docker compose up -d --build
+    docker compose --env-file config/compose.env up -d --build
     ```
   - 访问：前端 `http://localhost:5173`（Nginx 静态资源 + 反向代理 `/api` 到后端），后端 `http://localhost:3000`
   - 常用命令：
@@ -101,6 +114,7 @@ $env:BAIDU_OCR_SECRET_KEY = "你的Secret Key"
 - 安全与密钥：
   - 不要将密钥写入代码仓库；通过环境变量或 CI/CD Secrets 注入。
   - 如需使用 `.env` 文件，请确保加入 `.gitignore` 且使用占位符示例文件（例如 `.env.example`）。
+  - 本项目已提供 `config/backend.env.example` 与 `config/compose.env.example`；真实文件已在 `.gitignore` 忽略。
 
 ## API 概览（后端）
 - `GET /`：健康检查 → `{ message }`

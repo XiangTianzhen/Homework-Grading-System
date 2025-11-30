@@ -10,7 +10,7 @@ const Logger = require('./utils/logger');
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-const PORT = 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const logger = new Logger();
 
 // 中间件
